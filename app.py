@@ -185,7 +185,7 @@ with tab3:
             
             title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
             subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
-            heading_style = ParagraphStyle('SectionHeading', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor('#1A365D'], spaceBefore=10, spaceAfter=4)
+            heading_style = ParagraphStyle('SectionHeading', fontSize=11, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
             body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
             bold_body = ParagraphStyle('BoldBody', parent=body_style, fontName='Helvetica-Bold')
             
