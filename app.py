@@ -63,6 +63,7 @@ with tab1:
             eay = (((1 + (nominal_yield / 100) * (tenor_days / 365))) ** (365 / tenor_days) - 1) * 100
             net_yield = (net_profit / required_cash) * (365 / tenor_days) * 100
             real_return = (((1 + (net_yield / 100)) / (1 + (headline_inflation / 100))) - 1) * 100
+            active_yield = nominal_yield
 
         else:
             bond_years = st.selectbox("Bond Maturity Tenor (Years)", [3, 5, 7, 10], index=1)
@@ -79,6 +80,7 @@ with tab1:
             gross_profit = total_interest
             eay = coupon_rate
             real_return = (((1 + (coupon_rate / 100)) / (1 + (headline_inflation / 100))) - 1) * 100
+            active_yield = coupon_rate
 
     with col_out:
         st.subheader("📈 Institutional Yield Outputs")
@@ -90,7 +92,7 @@ with tab1:
         with m_col2:
             st.metric("Effective Annual Yield (EAY)", f"{eay:.2f}%")
             st.metric("Net Earnings Post-Tax", f"{net_profit:,.2f} ETB")
-            st.metric("Inflation Gap", f"{(nominal_yield - headline_inflation):.2f}%")
+            st.metric("Inflation Gap", f"{(active_yield - headline_inflation):.2f}%")
         
         st.divider()
         if real_return >= 0:
@@ -208,7 +210,7 @@ with tab3:
                 [Paragraph("<b>Metric</b>", bold_body), Paragraph("<b>Value</b>", bold_body), Paragraph("<b>Context</b>", bold_body)],
                 ["Headline Inflation", f"{headline_inflation:.2f}%", "Macro Baseline"],
                 ["Instrument", security_type, "Debt Instrument"],
-                ["Nominal Yield", f"{nominal_yield:.2f}%", "Cut-off Rate"],
+                ["Nominal Yield", f"{active_yield:.2f}%", "Cut-off Rate / Coupon"],
                 ["Effective Annual Yield", f"{eay:.2f}%", "Compounded Return"],
                 ["Net Earnings Post-Tax", f"{net_profit:,.2f} ETB", f"Tax: {withholding_tax_rate}%"],
                 ["Real Return Rate", f"{real_return:.2f}%", "Fisher Real Return"]
