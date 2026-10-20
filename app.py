@@ -227,13 +227,36 @@ with tab3:
             doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
             styles = getSampleStyleSheet()
             
-            title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
-            subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
-            heading_style = ParagraphStyle('SectionHeading', fontSize=11, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
+            # --- TYPOGRAPHY & CELL STYLES FOR PERFECT LAYOUT & CONTRAST ---
+            title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
+            subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
+            heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
+            
             body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
             bold_body = ParagraphStyle('BoldBody', parent=body_style, fontName='Helvetica-Bold')
             
+            # High-contrast white text style for dark table headers
+            header_cell_style = ParagraphStyle(
+                'HeaderCell',
+                parent=styles['Normal'],
+                fontName='Helvetica-Bold',
+                fontSize=9,
+                textColor=colors.whitesmoke,
+                leading=11
+            )
+            
+            # Wrapped text style for table data cells to avoid clipping/overlapping
+            table_cell_style = ParagraphStyle(
+                'TableCell',
+                parent=styles['Normal'],
+                fontName='Helvetica',
+                fontSize=8.5,
+                textColor=colors.HexColor('#2D3748'),
+                leading=11
+            )
+            
             story = []
+            # FIXED TITLE: Removed the stray semicolon from M&E;
             story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
             story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed Via:</b> {payment_gateway} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
@@ -246,58 +269,67 @@ with tab3:
             """
             story.append(Paragraph(summary_text, body_style))
             
-            # Financial Table with Custom Portfolio Assets
+            # 2. Financial Table with Custom Portfolio Assets (Wrapped in Paragraphs for Auto-Wrapping)
             story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
             fin_data = [
-                [Paragraph("<b>Metric / Asset</b>", bold_body), Paragraph("<b>Value / Yield</b>", bold_body), Paragraph("<b>Context / Allocation</b>", bold_body)],
-                ["Headline Inflation", f"{headline_inflation:.2f}%", "Macro Baseline"],
-                ["Primary Instrument", security_type, "Selected Asset"],
-                ["Effective Annual Yield", f"{eay:.2f}%", "Compounded Return"],
-                ["Net Earnings Post-Tax", f"{net_profit:,.2f} ETB", f"Tax: {withholding_tax_rate}%"],
-                ["Real Return Rate", f"{real_return:.2f}%", "Fisher Real Return"]
+                [Paragraph("Metric / Asset", header_cell_style), Paragraph("Value / Yield", header_cell_style), Paragraph("Context / Allocation", header_cell_style)],
+                [Paragraph("Headline Inflation", table_cell_style), Paragraph(f"{headline_inflation:.2f}%", table_cell_style), Paragraph("Macro Baseline", table_cell_style)],
+                [Paragraph("Primary Instrument", table_cell_style), Paragraph(str(security_type), table_cell_style), Paragraph("Selected Asset", table_cell_style)],
+                [Paragraph("Effective Annual Yield", table_cell_style), Paragraph(f"{eay:.2f}%", table_cell_style), Paragraph("Compounded Return", table_cell_style)],
+                [Paragraph("Net Earnings Post-Tax", table_cell_style), Paragraph(f"{net_profit:,.2f} ETB", table_cell_style), Paragraph(f"Tax: {withholding_tax_rate}%", table_cell_style)],
+                [Paragraph("Real Return Rate", table_cell_style), Paragraph(f"{real_return:.2f}%", table_cell_style), Paragraph("Fisher Real Return", table_cell_style)]
             ]
             
-            # Append dynamic portfolio assets
+            # Append dynamic portfolio assets safely wrapped
             for _, row in edited_portfolio.iterrows():
                 inst_name = str(row.get("Instrument Name", "Custom Asset"))
                 yld = row.get("Nominal Yield (%)", 0)
                 alloc = row.get("Allocation (ETB)", 0)
-                fin_data.append([inst_name[:30], f"{yld:.2f}% Nominal", f"Allocation: {alloc:,.2f} ETB"])
+                fin_data.append([
+                    Paragraph(inst_name, table_cell_style),
+                    Paragraph(f"{yld:.2f}% Nominal", table_cell_style),
+                    Paragraph(f"Allocation: {alloc:,.2f} ETB", table_cell_style)
+                ])
 
-            t_fin = Table(fin_data, colWidths=[160, 140, 240])
+            # Explicit column widths totaling 540pt to fit standard page margins cleanly
+            t_fin = Table(fin_data, colWidths=[180, 140, 220])
             t_fin.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
-                ('TOPPADDING', (0,0), (-1,-1), 4),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('TOPPADDING', (0,0), (-1,-1), 5),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
             ]))
             story.append(t_fin)
             
-            # M&E Table with Dynamic Custom KPIs
+            # 3. M&E Table with Dynamic Custom KPIs (Wrapped in Paragraphs for Auto-Wrapping)
             story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
             me_data = [
-                [Paragraph("<b>Indicator</b>", bold_body), Paragraph("<b>Metric</b>", bold_body), Paragraph("<b>Assessment</b>", bold_body)],
-                ["Project Title", project_title, implementing_agency],
-                ["Total Budget", f"{project_budget:,.2f} ETB", "Capital Outlay"],
-                ["Direct Beneficiaries", f"{direct_beneficiaries:,}", f"Cost: {cost_per_direct:,.2f} ETB/person"],
-                ["SROI Ratio", f"{sroi_ratio:.2f} : 1", "Social Efficiency"]
+                [Paragraph("Indicator", header_cell_style), Paragraph("Metric", header_cell_style), Paragraph("Assessment", header_cell_style)],
+                [Paragraph("Project Title", table_cell_style), Paragraph(str(project_title), table_cell_style), Paragraph(str(implementing_agency), table_cell_style)],
+                [Paragraph("Total Budget", table_cell_style), Paragraph(f"{project_budget:,.2f} ETB", table_cell_style), Paragraph("Capital Outlay", table_cell_style)],
+                [Paragraph("Direct Beneficiaries", table_cell_style), Paragraph(f"{direct_beneficiaries:,}", table_cell_style), Paragraph(f"Cost: {cost_per_direct:,.2f} ETB/person", table_cell_style)],
+                [Paragraph("SROI Ratio", table_cell_style), Paragraph(f"{sroi_ratio:.2f} : 1", table_cell_style), Paragraph("Social Efficiency", table_cell_style)]
             ]
             
-            # Append dynamic custom KPIs from table
+            # Append dynamic custom KPIs from table safely wrapped
             for _, row in edited_kpis.iterrows():
                 ind_name = str(row.get("Indicator Name", "Custom Indicator"))
                 val = row.get("Target Value", 0)
                 unit = str(row.get("Unit", ""))
-                me_data.append([ind_name[:30], f"{val:,.0f} {unit}", "Custom Indicator Target"])
+                me_data.append([
+                    Paragraph(ind_name, table_cell_style),
+                    Paragraph(f"{val:,.0f} {unit}", table_cell_style),
+                    Paragraph("Custom Indicator Target", table_cell_style)
+                ])
 
-            t_me = Table(me_data, colWidths=[160, 140, 240])
+            t_me = Table(me_data, colWidths=[180, 140, 220])
             t_me.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
                 ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
-                ('TOPPADDING', (0,0), (-1,-1), 4),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('TOPPADDING', (0,0), (-1,-1), 5),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
             ]))
             story.append(t_me)
             
