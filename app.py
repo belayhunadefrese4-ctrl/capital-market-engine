@@ -17,6 +17,15 @@ st.set_page_config(
     layout="wide"
 )
 
+# PWA and Mobile-Friendly Meta Tags Injection
+st.markdown("""
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1A365D">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EthioMarkets M&E">
+""", unsafe_allow_html=True)
+
 # Custom Header Section
 st.title("🇪🇹 Ethiopian Capital Market & Development M&E Analytics Engine")
 st.markdown("""
@@ -53,7 +62,6 @@ with tab1:
             nominal_yield = st.number_input("Auction Cut-off Yield / Nominal Rate (%)", min_value=0.0, max_value=100.0, value=18.50, step=0.25)
             target_outlay = st.number_input("Target Face Value Investment (ETB)", min_value=10000.0, value=1000000.0, step=100000.0)
             
-            # T-Bill Calculations
             discount_price = 100 / (1 + (nominal_yield / 100) * (tenor_days / 365))
             required_cash = (target_outlay * discount_price) / 100
             gross_profit = target_outlay - required_cash
@@ -101,26 +109,31 @@ with tab1:
             st.error(f"**Real Return Rate (Purchasing Power Loss):** {real_return:.2f}%\n\n*Nominal gains are eclipsed by domestic price inflation, leading to real capital dilution.*")
 
 # ==============================================================================
-# TAB 2: DEVELOPMENT IMPACT & M&E SCORECARD
+# TAB 2: DEVELOPMENT IMPACT & M&E SCORECARD (WITH CUSTOM KPI PLUG-IN)
 # ==============================================================================
 with tab2:
-    st.header("2. Project M&E, Social Return & Cost-Efficiency Engine")
+    st.header("2. Project M&E, Social Return & Custom Institutional Scorecard")
     st.caption("Aligned with Planning and Development Commission & International Donor Monitoring Frameworks.")
     
     col_m1, col_m2 = st.columns([1, 1])
     
     with col_m1:
-        st.subheader("📋 Project Parameters")
+        st.subheader("📋 Core Project Parameters")
+        org_type = st.selectbox("Organization / Sector Focus", ["NGO / Non-Profit Development", "Private Enterprise / Commercial", "Impact Investor / VC", "Government / Public Sector"])
         project_title = st.text_input("Project Name / Initiative Title", "National Agricultural Productivity Enhancement Project")
         implementing_agency = st.text_input("Implementing Organization / Bureau", "Ministry of Agriculture / Planning Commission")
         project_budget = st.number_input("Total Financial Investment (ETB)", value=10000000.0, step=500000.0)
         
-        st.subheader("👥 Beneficiary Metrics")
+        st.subheader("👥 Beneficiary & Core Metrics")
         direct_beneficiaries = st.number_input("Direct Beneficiaries Reached", value=15000, step=1000)
         indirect_beneficiaries = st.number_input("Indirect Beneficiaries Reached", value=45000, step=2500)
-        
-        st.subheader("💡 Monetized Impact Evaluation")
         monetized_social_value = st.number_input("Monetized Value of Social Benefits Created (ETB)", value=18500000.0, step=500000.0)
+        
+        # ADVANCED FEATURE: Custom KPI Builder for Organization Needs
+        st.subheader("➕ Custom Institutional KPI Builder")
+        st.caption("Add specialized indicators specific to your organization's mandate.")
+        custom_kpi_name = st.text_input("Custom Indicator Name (e.g., Green Jobs Created / MSMEs Trained)", "Smallholder Farmers Trained in Climate-Smart Agri")
+        custom_kpi_value = st.number_input("Custom Indicator Target Score / Count", value=2500.0, step=100.0)
 
     with col_m2:
         st.subheader("📊 M&E Performance Diagnostics")
@@ -134,11 +147,12 @@ with tab2:
         with kpi_col1:
             st.metric("Cost per Direct Beneficiary", f"{cost_per_direct:,.2f} ETB")
             st.metric("Total Beneficiary Reach", f"{total_beneficiaries:,}")
-            st.metric("Cost per Combined Beneficiary", f"{cost_per_total:,.2f} ETB")
+            st.metric("Sector Mandate", org_type.split()[0])
         with kpi_col2:
             st.metric("Social Return on Investment (SROI)", f"{sroi_ratio:.2f}:1")
             st.metric("Net Social Value Created", f"{net_social_value:,.2f} ETB")
-            
+            st.metric("Custom KPI Metric", f"{custom_kpi_value:,.0f} Units")
+        
         st.divider()
         if sroi_ratio >= 1.5:
             st.success(f"**High Impact Performance (SROI: {sroi_ratio:.2f}:1)**\n\nFor every 1.00 ETB invested, {sroi_ratio:.2f} ETB of monetized socio-economic value is generated.")
@@ -193,14 +207,14 @@ with tab3:
             
             story = []
             story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
-            story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Licensed Via:</b> {payment_gateway} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
+            story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed Via:</b> {payment_gateway} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
             
             story.append(Paragraph("1. Executive Summary & Macroeconomic Overview", heading_style))
             summary_text = f"""
             This certified institutional report evaluates capital market yields against headline inflation of <b>{headline_inflation:.2f}%</b>, 
             yielding a real purchasing power return of <b>{real_return:.2f}%</b> for <b>{security_type}</b>. 
-            M&E evaluation for <b>{project_title}</b> records an SROI ratio of <b>{sroi_ratio:.2f}:1</b> across <b>{total_beneficiaries:,}</b> beneficiaries.
+            M&E evaluation for <b>{project_title}</b> under sector <b>{org_type}</b> records an SROI ratio of <b>{sroi_ratio:.2f}:1</b> across <b>{total_beneficiaries:,}</b> beneficiaries.
             """
             story.append(Paragraph(summary_text, body_style))
             
@@ -225,14 +239,15 @@ with tab3:
             ]))
             story.append(t_fin)
             
-            # M&E Table
-            story.append(Paragraph("3. Impact & M&E Performance Metrics", heading_style))
+            # M&E Table with Custom KPI
+            story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
             me_data = [
                 [Paragraph("<b>Indicator</b>", bold_body), Paragraph("<b>Metric</b>", bold_body), Paragraph("<b>Assessment</b>", bold_body)],
                 ["Project Title", project_title, implementing_agency],
                 ["Total Budget", f"{project_budget:,.2f} ETB", "Capital Outlay"],
                 ["Direct Beneficiaries", f"{direct_beneficiaries:,}", f"Cost: {cost_per_direct:,.2f} ETB/person"],
-                ["SROI Ratio", f"{sroi_ratio:.2f} : 1", "Social Efficiency"]
+                ["SROI Ratio", f"{sroi_ratio:.2f} : 1", "Social Efficiency"],
+                [custom_kpi_name[:30], f"{custom_kpi_value:,.0f}", "Custom Org KPI"]
             ]
             t_me = Table(me_data, colWidths=[160, 140, 240])
             t_me.setStyle(TableStyle([
