@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Optional Google Analytics Tracking Injection (Replace G-XXXXXXXXXX with your actual ID)
+# Optional Google Analytics Tracking Injection
 ga_measurement_id = "G-XXXXXXXXXX"
 st.markdown(f"""
     <!-- Global site tag (gtag.js) - Google Analytics -->
@@ -106,7 +106,6 @@ with tab1:
             real_return = (((1 + (coupon_rate / 100)) / (1 + (headline_inflation / 100))) - 1) * 100
             active_yield = coupon_rate
 
-        # DYNAMIC CUSTOM PORTFOLIO INSTRUMENTS BUILDER
         st.subheader("➕ Dynamic Custom Fixed Income Portfolio")
         st.caption("Add multiple custom bonds, T-bills, or commercial papers to your portfolio tracking.")
         
@@ -142,7 +141,7 @@ with tab1:
             st.error(f"**Real Return Rate (Purchasing Power Loss):** {real_return:.2f}%\n\n*Nominal gains are eclipsed by domestic price inflation, leading to real capital dilution.*")
 
 # ==============================================================================
-# TAB 2: DEVELOPMENT IMPACT & M&E SCORECARD (DYNAMIC MULTI-KPI ADDITION)
+# TAB 2: DEVELOPMENT IMPACT & M&E SCORECARD
 # ==============================================================================
 with tab2:
     st.header("2. Project M&E, Social Return & Custom Institutional Scorecard")
@@ -162,7 +161,6 @@ with tab2:
         indirect_beneficiaries = st.number_input("Indirect Beneficiaries Reached", value=45000, step=2500)
         monetized_social_value = st.number_input("Monetized Value of Social Benefits Created (ETB)", value=18500000.0, step=500000.0)
         
-        # DYNAMIC UNLIMITED MULTI-KPI ADDITION TABLE
         st.subheader("➕ Dynamic Institutional KPIs & Custom Variables")
         st.caption("Click the '+' button at the bottom of the table to add unlimited custom indicators.")
         
@@ -204,11 +202,11 @@ with tab2:
             st.info(f"**Moderate Impact Efficiency (SROI: {sroi_ratio:.2f}:1)**")
 
 # ==============================================================================
-# TAB 3: EXECUTIVE REPORT GENERATOR & LOCAL PAYMENT GATEWAY (TELEBIRR / CHAPA)
+# TAB 3: EXECUTIVE REPORT GENERATOR & SECURE PAYMENT AUDIT GATEWAY
 # ==============================================================================
 with tab3:
     st.header("3. Executive PDF Report & Institutional Licensing Gateway")
-    st.markdown("Unlock certified institutional reports via local digital payment channels (**telebirr** or **Chapa**).")
+    st.markdown("Unlock certified institutional reports by completing payment via **telebirr** or **CBE Bank Transfer**.")
     
     col_rep1, col_rep2 = st.columns([1, 1])
     
@@ -219,16 +217,24 @@ with tab3:
         exec_comments = st.text_area("Custom Executive Remarks", "Evaluates capital allocation efficiency and inflation adjustments for institutional review.")
 
     with col_rep2:
-        st.subheader("💳 Institutional Licensing & Payment")
-        payment_gateway = st.selectbox("Select Local Payment Gateway", ["telebirr (Mobile Money)", "Chapa (Bank Transfer / Card)", "Free Demo / Institutional Access Key"])
+        st.subheader("💳 Secure Payment & Account Verification")
+        payment_gateway = st.selectbox("Select Payment Method", ["telebirr (Mobile Money)", "CBE Bank Transfer", "Free Demo / Institutional Access Key"])
         
         if payment_gateway != "Free Demo / Institutional Access Key":
-            st.info(f"Report Generation Fee: **500.00 ETB** via {payment_gateway}")
-            payer_phone = st.text_input("Payer Phone Number / Account ID", "+251 9XXXXXXXX")
-            tx_reference = st.text_input("Enter Transaction Reference Code", "TXN-XXXX-XXXX")
-            is_authorized = len(tx_reference) > 4
+            st.info(f"Report Generation Fee: **500.00 ETB**\n* Transfer to Official Account: **+251 911 000 000** (telebirr) or CBE Account **1000XXXXXXXXX**")
+            
+            # STRICTER FIELDS TO CAPTURE SENDER DETAILS FOR AUDITING
+            sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Ato Kebede Tadesse")
+            sender_account = st.text_input("Sender Account / Phone Number", placeholder="e.g., +251 911XXXXXX")
+            tx_reference = st.text_input("Transaction Reference / SMS Code", placeholder="e.g., TR12345678 or Bank Ref")
+            
+            # Authorization requires proper naming and code length to stop casual cheating
+            is_authorized = len(sender_name.strip()) > 3 and len(sender_account.strip()) > 6 and len(tx_reference.strip()) > 5
         else:
             access_key = st.text_input("Enter Institutional Access Code", type="password")
+            sender_name = "Institutional Demo User"
+            sender_account = "Access Key"
+            tx_reference = access_key
             is_authorized = (access_key == "ETHIOPIA2026")
             if not is_authorized:
                 st.warning("Hint for testing: Enter access code **ETHIOPIA2026**")
@@ -236,27 +242,23 @@ with tab3:
     st.divider()
     
     if is_authorized:
-        st.success("✅ Payment & Institutional Licensing Verified! You can now generate and download your certified PDF report.")
+        st.success("✅ Payment Details Verified! You can now generate and download your certified PDF report.")
         
         if st.button("🚀 Generate Certified Executive PDF Report", type="primary"):
-            # Automatically Log Payment Transaction for Admin Auditing
+            # Automatically Log Payment Transaction with Sender Account Details for Auditing
             payment_log_file = "payment_audit_trail.csv"
             file_exists = os.path.exists(payment_log_file)
-            
-            phone_val = payer_phone if 'payer_phone' in locals() else "Access Key User"
-            ref_val = tx_reference if 'tx_reference' in locals() else access_key
             
             with open(payment_log_file, "a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 if not file_exists:
-                    writer.writerow(["Timestamp", "Payment Gateway", "Phone/Account", "Reference Code", "Report Title"])
-                writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), payment_gateway, phone_val, ref_val, report_title])
+                    writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title"])
+                writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), payment_gateway, sender_name, sender_account, tx_reference, report_title])
                 
             pdf_buffer = io.BytesIO()
             doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
             styles = getSampleStyleSheet()
             
-            # --- TYPOGRAPHY & CELL STYLES FOR PERFECT LAYOUT & CONTRAST ---
             title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
             subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
             heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
@@ -284,7 +286,7 @@ with tab3:
             
             story = []
             story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
-            story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed Via:</b> {payment_gateway} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
+            story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed To:</b> {sender_name} ({sender_account}) | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
             
             story.append(Paragraph("1. Executive Summary & Macroeconomic Overview", heading_style))
@@ -295,7 +297,6 @@ with tab3:
             """
             story.append(Paragraph(summary_text, body_style))
             
-            # 2. Financial Table with Custom Portfolio Assets
             story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
             fin_data = [
                 [Paragraph("Metric / Asset", header_cell_style), Paragraph("Value / Yield", header_cell_style), Paragraph("Context / Allocation", header_cell_style)],
@@ -326,7 +327,6 @@ with tab3:
             ]))
             story.append(t_fin)
             
-            # 3. M&E Table with Dynamic Custom KPIs
             story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
             me_data = [
                 [Paragraph("Indicator", header_cell_style), Paragraph("Metric", header_cell_style), Paragraph("Assessment", header_cell_style)],
@@ -367,15 +367,14 @@ with tab3:
                 type="primary"
             )
     else:
-        st.warning("🔒 **Report Generation Locked:** Please enter a valid transaction reference code or use the demo access code (`ETHIOPIA2026`) to unlock report downloads.")
+        st.warning("🔒 **Report Generation Locked:** Please provide your **Sender Full Name**, **Account/Phone Number**, and a valid **Transaction Reference** to unlock report downloads.")
 
-    # PUBLIC USER FEEDBACK & REVIEWS FORM
     st.divider()
     with st.expander("💬 Submit Feedback or Institutional Review"):
         with st.form("user_review_form"):
-            reviewer_name = st.text_input("Name / Institution", placeholder="e.g., Senior M&E Officer / Commercial Bank Analyst")
+            reviewer_name = st.text_input("Name / Institution", placeholder="e.g., Commercial Bank Analyst")
             rating = st.slider("Platform Rating", 1, 5, 5)
-            comments = st.text_area("Your Review, Feedback, or Feature Requests")
+            comments = st.text_area("Your Review or Feature Request")
             submit_btn = st.form_submit_button("Submit Review")
             
             if submit_btn:
@@ -402,13 +401,13 @@ with tab4:
         st.success("🔓 Access Granted: Welcome to the Management Console.")
         
         adm_tab1, adm_tab2, adm_tab3 = st.tabs([
-            "💳 Payment & Transaction Logs", 
+            "💳 Payment & Sender Audit Logs", 
             "💬 User Feedback & Reviews", 
             "📊 Traffic & Analytics Overview"
         ])
         
         with adm_tab1:
-            st.subheader("💳 Verified Transaction Records")
+            st.subheader("💳 Verified Transactions & Sender Profiles")
             payment_log_file = "payment_audit_trail.csv"
             
             if os.path.exists(payment_log_file):
@@ -423,7 +422,7 @@ with tab4:
                     mime="text/csv"
                 )
             else:
-                st.info("No payment transactions recorded yet. Logs will appear here automatically when users download reports.")
+                st.info("No payment transactions recorded yet.")
 
         with adm_tab2:
             st.subheader("💬 Community & Institutional Reviews")
@@ -431,11 +430,9 @@ with tab4:
             
             if os.path.exists(feedback_log_file):
                 df_feedback = pd.read_csv(feedback_log_file)
-                
                 if "Rating" in df_feedback.columns:
                     avg_rating = df_feedback["Rating"].mean()
                     st.metric("Average Rating", f"⭐ {avg_rating:.1f} / 5.0")
-                
                 st.dataframe(df_feedback, use_container_width=True)
             else:
                 st.info("No user reviews submitted yet.")
@@ -444,7 +441,7 @@ with tab4:
             st.subheader("📊 Platform Analytics & Traffic Reach")
             st.markdown("""
             **Streamlit Cloud Analytics:**  
-            View live active sessions, resources, and bandwidth metrics in your [Streamlit Cloud Dashboard](https://share.streamlit.io).
+            View live active sessions and bandwidth metrics in your [Streamlit Cloud Dashboard](https://share.streamlit.io).
             """)
             st.info("💡 **Google Analytics:** Traffic stats are logged directly to your Google Analytics dashboard using tag ID `G-XXXXXXXXXX`.")
 
