@@ -42,31 +42,65 @@ st.markdown("""
     <meta name="apple-mobile-web-app-title" content="EthioMarkets M&E">
 """, unsafe_allow_html=True)
 
-# SMSEthiopia API Notification Helper Function
+# ==============================================================================
+# HELPER FUNCTIONS: SMS GATEWAY & CHAPA PAYMENT INTEGRATION
+# ==============================================================================
 def send_smsethiopia_alert(recipient_phone, message_text):
     """
     Triggers an instant SMS notification via SMSEthiopia HTTP API.
     """
-    api_endpoint = "https://api.smsethiopia.com/v1/sms/send"  
-    api_key = "YOUR_SMSETHIOPIA_API_KEY"                      # Replace with your SMSEthiopia API key
+    api_endpoint = "https://api.smsethiopia.com/v1/sms/send"
+    api_key = st.secrets.get("SMSETHIOPIA_API_KEY", "YOUR_SMSETHIOPIA_API_KEY")
     
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
-    
     payload = {
         "msisdn": recipient_phone,
         "text": message_text
     }
-    
     try:
         response = requests.post(api_endpoint, json=payload, headers=headers, timeout=10)
         return response.json()
     except Exception as e:
         return {"sent": False, "description": str(e)}
 
-# Custom Header Section
+def initialize_chapa_checkout(email, amount, currency, tx_ref, first_name, last_name, phone_number):
+    """
+    Initializes a checkout session using the Chapa Payment Gateway API.
+    Supports local ETB (telebirr/CBE) and foreign USD credit card payments.
+    """
+    url = "https://api.chapa.co/v1/transaction/initialize"
+    chapa_secret = st.secrets.get("CHAPA_SECRET_KEY", "CHASECK_TEST-xxxxxxxxxxxxxxxxxxxx")
+    
+    headers = {
+        "Authorization": f"Bearer {chapa_secret}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "amount": str(amount),
+        "currency": currency,
+        "email": email,
+        "first_name": first_name,
+        "last_name": last_name,
+        "phone_number": phone_number,
+        "tx_ref": tx_ref,
+        "callback_url": "https://share.streamlit.io",
+        "customization": {
+            "title": "EthioMarkets PDF License",
+            "description": "Ethiopian Capital Market & Impact Analytics Briefing"
+        }
+    }
+    try:
+        res = requests.post(url, json=payload, headers=headers, timeout=10)
+        return res.json()
+    except Exception as e:
+        return {"status": "failed", "message": str(e)}
+
+# ==============================================================================
+# MAIN INTERFACE HEADER
+# ==============================================================================
 st.title("🇪🇹 Ethiopian Capital Market & Development M&E Analytics Engine")
 st.markdown("""
 **A Comprehensive Macroeconomic, Fixed Income Yield & Social Impact Evaluation Platform**  
@@ -227,11 +261,11 @@ with tab2:
             st.info(f"**Moderate Impact Efficiency (SROI: {sroi_ratio:.2f}:1)**")
 
 # ==============================================================================
-# TAB 3: EXECUTIVE REPORT GENERATOR & STRICT PAYMENT VERIFICATION
+# TAB 3: EXECUTIVE REPORT GENERATOR & MULTI-CHANNEL PAYMENT GATEWAY
 # ==============================================================================
 with tab3:
     st.header("3. Executive PDF Report & Institutional Licensing Gateway")
-    st.markdown("Unlock certified institutional reports by completing payment via **telebirr** or **CBE Bank Transfer**.")
+    st.markdown("Unlock certified institutional reports by completing payment via **telebirr**, **International Remittance**, **CBE Bank Transfer**, or **USD Credit Cards**.")
     
     col_rep1, col_rep2 = st.columns([1, 1])
     
@@ -242,19 +276,27 @@ with tab3:
         exec_comments = st.text_area("Custom Executive Remarks", "Evaluates capital allocation efficiency and inflation adjustments for institutional review.")
 
     with col_rep2:
-        st.subheader("💳 Secure Payment & Licensing Verification")
-        payment_gateway = st.selectbox("Select Access Option", ["Submit Payment Verification Request", "Enter Verified Access Key"])
+        st.subheader("💳 Secure Multi-Channel Payment & Verification")
+        payment_gateway = st.selectbox(
+            "Select Payment Channel", 
+            ["1. telebirr / Remitly / Bank Transfer (Manual Verification)", "2. Automated Chapa Gateway (ETB / USD Cards)", "3. Enter Verified Access Key"]
+        )
         
-        if payment_gateway == "Submit Payment Verification Request":
-            st.info("Report Licensing Fee: **500.00 ETB**\n* Transfer to Official Account: **+251 986 884 912** (telebirr) or CBE Bank Account **1000XXXXXXXXX**")
+        is_authorized = False
+
+        if payment_gateway == "1. telebirr / Remitly / Bank Transfer (Manual Verification)":
+            st.info("Report Licensing Fee: **500.00 ETB** or **$10.00 USD**\n\n* **Local telebirr:** Transfer to **`+251986884912`**\n* **International Remittance (Remitly / Sendwave / WorldRemit):** Select *telebirr* > Recipient Mobile **`+251986884912`** (Account: Belayhun Adefrese)\n* **CBE Bank Account:** Transfer to Account **`1000XXXXXXXXX`**")
             
-            sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Ato Kebede Tadesse")
-            sender_account = st.text_input("Sender Account / Mobile Number", placeholder="e.g., 251911XXXXXX")
-            tx_reference = st.text_input("Transaction Reference / SMS Code", placeholder="e.g., TR12345678 or CBE Ref")
+            sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Belayhun Adefrese")
+            sender_account = st.text_input("Sender Mobile / Account Number", placeholder="e.g., +251986884912")
+            tx_reference = st.text_input(
+                "Transaction Reference / SMS Code / MTCN Code", 
+                placeholder="e.g., TR98234101 (telebirr) or RMT123456 (Remitly MTCN)",
+                help="Enter the exact receipt code from your transfer confirmation SMS or remittance email."
+            )
             
-            if st.button("📩 Submit Payment for Verification", type="primary"):
+            if st.button("📩 Submit Payment for Manual Verification", type="primary"):
                 if len(sender_name.strip()) > 3 and len(sender_account.strip()) > 6 and len(tx_reference.strip()) > 5:
-                    # 1. Log Payment Attempt for Financial Audit
                     payment_log_file = "payment_audit_trail.csv"
                     file_exists = os.path.exists(payment_log_file)
                     
@@ -264,26 +306,53 @@ with tab3:
                             writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title", "Status"])
                         writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Manual Verification Request", sender_name, sender_account, tx_reference, report_title, "Pending Audit"])
                     
-                    # 2. Trigger Instant SMS Alert to Admin (251986884912)
                     clean_client_phone = sender_account.replace("+", "").strip()
                     admin_phone = "251986884912"
                     
                     admin_message = f"VERIFY PAYMENT: 500 ETB claimed by {sender_name} ({clean_client_phone}). Ref: {tx_reference}."
                     send_smsethiopia_alert(admin_phone, admin_message)
                     
-                    st.info("⏳ **Payment Submitted for Review!** Our finance team is cross-checking your transaction reference against our bank statements. Once verified, your report access key will be activated.")
+                    st.info("⏳ **Payment Claim Logged!** Our finance team is cross-checking your transaction reference against our bank/telebirr statements. Once verified, your report access key will be issued.")
                 else:
-                    st.error("❌ Please provide accurate details across all payment fields.")
+                    st.error("❌ Please fill in all fields accurately with your genuine transfer receipt details.")
+
+        elif payment_gateway == "2. Automated Chapa Gateway (ETB / USD Cards)":
+            st.caption("Automated instant verification for local ETB mobile money and foreign USD Visa/Mastercard transactions.")
+            ch_currency = st.radio("Select Billing Currency", ["ETB (500.00 ETB)", "USD ($10.00 USD)"])
+            ch_amount = 500.0 if "ETB" in ch_currency else 10.0
+            curr_code = "ETB" if "ETB" in ch_currency else "USD"
             
-            is_authorized = False
+            ch_email = st.text_input("Customer Email Address", placeholder="user@institution.com")
+            ch_phone = st.text_input("Mobile Phone Number", placeholder="251911XXXXXX")
+            ch_name = st.text_input("Full Name", placeholder="Ato Kebede Tadesse")
+            
+            if st.button("🚀 Proceed to Chapa Payment Gateway", type="primary"):
+                if ch_email and ch_phone and ch_name:
+                    tx_ref = f"ETHIO-{curr_code}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    ch_res = initialize_chapa_checkout(
+                        email=ch_email,
+                        amount=ch_amount,
+                        currency=curr_code,
+                        tx_ref=tx_ref,
+                        first_name=ch_name.split()[0],
+                        last_name=ch_name.split()[-1] if len(ch_name.split()) > 1 else "User",
+                        phone_number=ch_phone
+                    )
+                    
+                    if ch_res.get("status") == "success":
+                        checkout_url = ch_res["data"]["checkout_url"]
+                        st.success("✅ Payment session created!")
+                        st.markdown(f"[👉 Click Here to Open Secure Payment Checkout Page]({checkout_url})")
+                    else:
+                        st.error(f"Gateway Error: {ch_res.get('message', 'Initialization failed')}")
+                else:
+                    st.error("Please fill in your email, phone, and name to proceed.")
 
         else:
-            # STRICT VERIFIED KEY CHECKING (PREVENTS FREE-DOWNLOAD LOOPHOLES)
             access_key = st.text_input("Enter Approved Access Key", type="password")
             sender_name = "Licensed Institutional User"
             sender_account = "Authorized Key"
             
-            # Key "ETHIOPIA2026" or any key granted via Admin Console
             is_authorized = (access_key == "ETHIOPIA2026")
             if not is_authorized and access_key != "":
                 st.error("❌ Invalid or Unverified Access Key. Please complete payment verification first.")
@@ -303,7 +372,6 @@ with tab3:
             title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
             subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
             heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
-            
             body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
             
             header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.whitesmoke, leading=11)
