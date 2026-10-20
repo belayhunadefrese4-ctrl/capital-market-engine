@@ -42,20 +42,20 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 # ==============================================================================
-# TAB 1: ETHIOPIAN CAPITAL MARKET & TREASURY YIELD ENGINE
+# TAB 1: ETHIOPIAN CAPITAL MARKET & MULTI-INSTRUMENT PORTFOLIO ENGINE
 # ==============================================================================
 with tab1:
-    st.header("1. Ethiopian Fixed Income & Money Market Analytics")
-    st.caption("Modeled for National Bank of Ethiopia (NBE) Auctions, Treasury Bills, Sovereign Bonds, and ESX Markets.")
+    st.header("1. Ethiopian Fixed Income & Multi-Asset Portfolio Analytics")
+    st.caption("Modeled for National Bank of Ethiopia (NBE) Auctions, Treasury Bills, Sovereign Bonds, and Custom Portfolio Assets.")
     
     col_in, col_out = st.columns([1, 1])
     
     with col_in:
-        st.subheader("⚙️ Macro & Instrument Inputs")
+        st.subheader("⚙️ Macro Baseline Inputs")
         headline_inflation = st.number_input("Ethiopian Headline Inflation Rate (%)", min_value=0.0, max_value=100.0, value=22.50, step=0.50)
         withholding_tax_rate = st.number_input("Applicable Withholding / Capital Tax (%)", min_value=0.0, max_value=30.0, value=0.0, step=1.0)
         
-        security_type = st.radio("Select Financial Instrument", ["Treasury Bill (Discount Security)", "Sovereign / Infrastructure Bond (Coupon Security)"])
+        security_type = st.radio("Primary Instrument Focus", ["Treasury Bill (Discount Security)", "Sovereign / Infrastructure Bond (Coupon Security)"])
         
         if security_type == "Treasury Bill (Discount Security)":
             tenor_days = st.selectbox("NBE T-Bill Tenor (Days)", [28, 91, 182, 364], index=3)
@@ -90,6 +90,23 @@ with tab1:
             real_return = (((1 + (coupon_rate / 100)) / (1 + (headline_inflation / 100))) - 1) * 100
             active_yield = coupon_rate
 
+        # DYNAMIC CUSTOM PORTFOLIO INSTRUMENTS BUILDER
+        st.subheader("➕ Dynamic Custom Fixed Income Portfolio")
+        st.caption("Add multiple custom bonds, T-bills, or commercial papers to your portfolio tracking.")
+        
+        if "portfolio_assets" not in st.session_state:
+            st.session_state.portfolio_assets = pd.DataFrame([
+                {"Instrument Name": "NBE 364-Day T-Bill", "Nominal Yield (%)": 18.50, "Allocation (ETB)": 2000000.0},
+                {"Instrument Name": "CBE Infrastructure Bond", "Nominal Yield (%)": 19.00, "Allocation (ETB)": 5000000.0}
+            ])
+            
+        edited_portfolio = st.data_editor(
+            st.session_state.portfolio_assets,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="portfolio_editor"
+        )
+
     with col_out:
         st.subheader("📈 Institutional Yield Outputs")
         m_col1, m_col2 = st.columns(2)
@@ -109,7 +126,7 @@ with tab1:
             st.error(f"**Real Return Rate (Purchasing Power Loss):** {real_return:.2f}%\n\n*Nominal gains are eclipsed by domestic price inflation, leading to real capital dilution.*")
 
 # ==============================================================================
-# TAB 2: DEVELOPMENT IMPACT & M&E SCORECARD (WITH CUSTOM KPI PLUG-IN)
+# TAB 2: DEVELOPMENT IMPACT & M&E SCORECARD (DYNAMIC MULTI-KPI ADDITION)
 # ==============================================================================
 with tab2:
     st.header("2. Project M&E, Social Return & Custom Institutional Scorecard")
@@ -129,11 +146,22 @@ with tab2:
         indirect_beneficiaries = st.number_input("Indirect Beneficiaries Reached", value=45000, step=2500)
         monetized_social_value = st.number_input("Monetized Value of Social Benefits Created (ETB)", value=18500000.0, step=500000.0)
         
-        # ADVANCED FEATURE: Custom KPI Builder for Organization Needs
-        st.subheader("➕ Custom Institutional KPI Builder")
-        st.caption("Add specialized indicators specific to your organization's mandate.")
-        custom_kpi_name = st.text_input("Custom Indicator Name (e.g., Green Jobs Created / MSMEs Trained)", "Smallholder Farmers Trained in Climate-Smart Agri")
-        custom_kpi_value = st.number_input("Custom Indicator Target Score / Count", value=2500.0, step=100.0)
+        # DYNAMIC UNLIMITED MULTI-KPI ADDITION TABLE
+        st.subheader("➕ Dynamic Institutional KPIs & Custom Variables")
+        st.caption("Click the '+' button at the bottom of the table to add unlimited custom indicators.")
+        
+        if "custom_kpis" not in st.session_state:
+            st.session_state.custom_kpis = pd.DataFrame([
+                {"Indicator Name": "Smallholder Farmers Trained", "Target Value": 2600.0, "Unit": "Farmers"},
+                {"Indicator Name": "Green Jobs Created", "Target Value": 450.0, "Unit": "Jobs"}
+            ])
+            
+        edited_kpis = st.data_editor(
+            st.session_state.custom_kpis,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="kpi_editor"
+        )
 
     with col_m2:
         st.subheader("📊 M&E Performance Diagnostics")
@@ -151,7 +179,7 @@ with tab2:
         with kpi_col2:
             st.metric("Social Return on Investment (SROI)", f"{sroi_ratio:.2f}:1")
             st.metric("Net Social Value Created", f"{net_social_value:,.2f} ETB")
-            st.metric("Custom KPI Metric", f"{custom_kpi_value:,.0f} Units")
+            st.metric("Custom KPIs Tracked", f"{len(edited_kpis)} Indicators")
         
         st.divider()
         if sroi_ratio >= 1.5:
@@ -218,17 +246,24 @@ with tab3:
             """
             story.append(Paragraph(summary_text, body_style))
             
-            # Financial Table
-            story.append(Paragraph("2. Financial Yield & Fixed Income Scorecard", heading_style))
+            # Financial Table with Custom Portfolio Assets
+            story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
             fin_data = [
-                [Paragraph("<b>Metric</b>", bold_body), Paragraph("<b>Value</b>", bold_body), Paragraph("<b>Context</b>", bold_body)],
+                [Paragraph("<b>Metric / Asset</b>", bold_body), Paragraph("<b>Value / Yield</b>", bold_body), Paragraph("<b>Context / Allocation</b>", bold_body)],
                 ["Headline Inflation", f"{headline_inflation:.2f}%", "Macro Baseline"],
-                ["Instrument", security_type, "Debt Instrument"],
-                ["Nominal Yield", f"{active_yield:.2f}%", "Cut-off Rate / Coupon"],
+                ["Primary Instrument", security_type, "Selected Asset"],
                 ["Effective Annual Yield", f"{eay:.2f}%", "Compounded Return"],
                 ["Net Earnings Post-Tax", f"{net_profit:,.2f} ETB", f"Tax: {withholding_tax_rate}%"],
                 ["Real Return Rate", f"{real_return:.2f}%", "Fisher Real Return"]
             ]
+            
+            # Append dynamic portfolio assets
+            for _, row in edited_portfolio.iterrows():
+                inst_name = str(row.get("Instrument Name", "Custom Asset"))
+                yld = row.get("Nominal Yield (%)", 0)
+                alloc = row.get("Allocation (ETB)", 0)
+                fin_data.append([inst_name[:30], f"{yld:.2f}% Nominal", f"Allocation: {alloc:,.2f} ETB"])
+
             t_fin = Table(fin_data, colWidths=[160, 140, 240])
             t_fin.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')),
@@ -239,16 +274,23 @@ with tab3:
             ]))
             story.append(t_fin)
             
-            # M&E Table with Custom KPI
+            # M&E Table with Dynamic Custom KPIs
             story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
             me_data = [
                 [Paragraph("<b>Indicator</b>", bold_body), Paragraph("<b>Metric</b>", bold_body), Paragraph("<b>Assessment</b>", bold_body)],
                 ["Project Title", project_title, implementing_agency],
                 ["Total Budget", f"{project_budget:,.2f} ETB", "Capital Outlay"],
                 ["Direct Beneficiaries", f"{direct_beneficiaries:,}", f"Cost: {cost_per_direct:,.2f} ETB/person"],
-                ["SROI Ratio", f"{sroi_ratio:.2f} : 1", "Social Efficiency"],
-                [custom_kpi_name[:30], f"{custom_kpi_value:,.0f}", "Custom Org KPI"]
+                ["SROI Ratio", f"{sroi_ratio:.2f} : 1", "Social Efficiency"]
             ]
+            
+            # Append dynamic custom KPIs from table
+            for _, row in edited_kpis.iterrows():
+                ind_name = str(row.get("Indicator Name", "Custom Indicator"))
+                val = row.get("Target Value", 0)
+                unit = str(row.get("Unit", ""))
+                me_data.append([ind_name[:30], f"{val:,.0f} {unit}", "Custom Indicator Target"])
+
             t_me = Table(me_data, colWidths=[160, 140, 240])
             t_me.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
