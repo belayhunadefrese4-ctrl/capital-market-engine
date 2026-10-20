@@ -407,13 +407,11 @@ with tab4:
         ])
         
         with adm_tab1:
-            with adm_tab1:
             st.subheader("💳 Verified Transactions & Sender Profiles")
             payment_log_file = "payment_audit_trail.csv"
             
             if os.path.exists(payment_log_file):
                 try:
-                    # 'on_bad_lines' skips any mismatched legacy test rows automatically
                     df_payments = pd.read_csv(payment_log_file, on_bad_lines='skip')
                     st.dataframe(df_payments, use_container_width=True)
                     
@@ -424,21 +422,26 @@ with tab4:
                         file_name=f"Payment_Audit_Log_{datetime.now().strftime('%Y%m%d')}.csv",
                         mime="text/csv"
                     )
-                except Exception as e:
-                    st.warning("⚠️ Legacy payment log format detected. Resetting log file for new transactions...")
+                except Exception:
                     os.remove(payment_log_file)
+                    st.rerun()
             else:
                 st.info("No payment transactions recorded yet.")
+
         with adm_tab2:
             st.subheader("💬 Community & Institutional Reviews")
             feedback_log_file = "user_feedback.csv"
             
             if os.path.exists(feedback_log_file):
-                df_feedback = pd.read_csv(feedback_log_file)
-                if "Rating" in df_feedback.columns:
-                    avg_rating = df_feedback["Rating"].mean()
-                    st.metric("Average Rating", f"⭐ {avg_rating:.1f} / 5.0")
-                st.dataframe(df_feedback, use_container_width=True)
+                try:
+                    df_feedback = pd.read_csv(feedback_log_file, on_bad_lines='skip')
+                    if "Rating" in df_feedback.columns:
+                        avg_rating = df_feedback["Rating"].mean()
+                        st.metric("Average Rating", f"⭐ {avg_rating:.1f} / 5.0")
+                    st.dataframe(df_feedback, use_container_width=True)
+                except Exception:
+                    os.remove(feedback_log_file)
+                    st.rerun()
             else:
                 st.info("No user reviews submitted yet.")
 
