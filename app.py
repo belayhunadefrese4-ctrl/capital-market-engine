@@ -256,7 +256,7 @@ with tab3:
             )
             
             story = []
-            # FIXED TITLE: Removed the stray semicolon from M&E;
+            # FULLY FIXED TITLE: Completely removed any stray semicolon from M&E
             story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
             story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed Via:</b> {payment_gateway} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
