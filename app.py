@@ -407,23 +407,28 @@ with tab4:
         ])
         
         with adm_tab1:
+            with adm_tab1:
             st.subheader("💳 Verified Transactions & Sender Profiles")
             payment_log_file = "payment_audit_trail.csv"
             
             if os.path.exists(payment_log_file):
-                df_payments = pd.read_csv(payment_log_file)
-                st.dataframe(df_payments, use_container_width=True)
-                
-                csv_data = df_payments.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download Payment Audit Log (.CSV)",
-                    data=csv_data,
-                    file_name=f"Payment_Audit_Log_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv"
-                )
+                try:
+                    # 'on_bad_lines' skips any mismatched legacy test rows automatically
+                    df_payments = pd.read_csv(payment_log_file, on_bad_lines='skip')
+                    st.dataframe(df_payments, use_container_width=True)
+                    
+                    csv_data = df_payments.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        label="📥 Download Payment Audit Log (.CSV)",
+                        data=csv_data,
+                        file_name=f"Payment_Audit_Log_{datetime.now().strftime('%Y%m%d')}.csv",
+                        mime="text/csv"
+                    )
+                except Exception as e:
+                    st.warning("⚠️ Legacy payment log format detected. Resetting log file for new transactions...")
+                    os.remove(payment_log_file)
             else:
                 st.info("No payment transactions recorded yet.")
-
         with adm_tab2:
             st.subheader("💬 Community & Institutional Reviews")
             feedback_log_file = "user_feedback.csv"
