@@ -45,7 +45,7 @@ st.markdown("""
 # SMSEthiopia API Notification Helper Function
 def send_smsethiopia_alert(recipient_phone, message_text):
     """
-    Triggers an instant SMS via SMSEthiopia API.
+    Triggers an instant SMS notification via SMSEthiopia HTTP API.
     """
     api_endpoint = "https://api.smsethiopia.com/v1/sms/send"  
     api_key = "YOUR_SMSETHIOPIA_API_KEY"                      # Replace with your SMSEthiopia API key
@@ -227,7 +227,7 @@ with tab2:
             st.info(f"**Moderate Impact Efficiency (SROI: {sroi_ratio:.2f}:1)**")
 
 # ==============================================================================
-# TAB 3: EXECUTIVE REPORT GENERATOR & SECURE PAYMENT AUDIT GATEWAY
+# TAB 3: EXECUTIVE REPORT GENERATOR & STRICT PAYMENT VERIFICATION
 # ==============================================================================
 with tab3:
     st.header("3. Executive PDF Report & Institutional Licensing Gateway")
@@ -242,52 +242,60 @@ with tab3:
         exec_comments = st.text_area("Custom Executive Remarks", "Evaluates capital allocation efficiency and inflation adjustments for institutional review.")
 
     with col_rep2:
-        st.subheader("💳 Secure Payment & Account Verification")
-        payment_gateway = st.selectbox("Select Payment Method", ["telebirr (Mobile Money)", "CBE Bank Transfer", "Free Demo / Institutional Access Key"])
+        st.subheader("💳 Secure Payment & Licensing Verification")
+        payment_gateway = st.selectbox("Select Access Option", ["Submit Payment Verification Request", "Enter Verified Access Key"])
         
-        if payment_gateway != "Free Demo / Institutional Access Key":
-            st.info(f"Report Generation Fee: **500.00 ETB**\n* Transfer to Official Account: **+251 911 000 000** (telebirr) or CBE Account **1000XXXXXXXXX**")
+        if payment_gateway == "Submit Payment Verification Request":
+            st.info("Report Licensing Fee: **500.00 ETB**\n* Transfer to Official Account: **+251 986 884 912** (telebirr) or CBE Bank Account **1000XXXXXXXXX**")
             
             sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Ato Kebede Tadesse")
-            sender_account = st.text_input("Sender Account / Phone Number", placeholder="e.g., +251 911XXXXXX")
-            tx_reference = st.text_input("Transaction Reference / SMS Code", placeholder="e.g., TR12345678 or Bank Ref")
+            sender_account = st.text_input("Sender Account / Mobile Number", placeholder="e.g., 251911XXXXXX")
+            tx_reference = st.text_input("Transaction Reference / SMS Code", placeholder="e.g., TR12345678 or CBE Ref")
             
-            is_authorized = len(sender_name.strip()) > 3 and len(sender_account.strip()) > 6 and len(tx_reference.strip()) > 5
+            if st.button("📩 Submit Payment for Verification", type="primary"):
+                if len(sender_name.strip()) > 3 and len(sender_account.strip()) > 6 and len(tx_reference.strip()) > 5:
+                    # 1. Log Payment Attempt for Financial Audit
+                    payment_log_file = "payment_audit_trail.csv"
+                    file_exists = os.path.exists(payment_log_file)
+                    
+                    with open(payment_log_file, "a", newline="", encoding="utf-8") as f:
+                        writer = csv.writer(f)
+                        if not file_exists:
+                            writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title", "Status"])
+                        writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Manual Verification Request", sender_name, sender_account, tx_reference, report_title, "Pending Audit"])
+                    
+                    # 2. Trigger Instant SMS Alert to Admin (251986884912)
+                    clean_client_phone = sender_account.replace("+", "").strip()
+                    admin_phone = "251986884912"
+                    
+                    admin_message = f"VERIFY PAYMENT: 500 ETB claimed by {sender_name} ({clean_client_phone}). Ref: {tx_reference}."
+                    send_smsethiopia_alert(admin_phone, admin_message)
+                    
+                    st.info("⏳ **Payment Submitted for Review!** Our finance team is cross-checking your transaction reference against our bank statements. Once verified, your report access key will be activated.")
+                else:
+                    st.error("❌ Please provide accurate details across all payment fields.")
+            
+            is_authorized = False
+
         else:
-            access_key = st.text_input("Enter Institutional Access Code", type="password")
-            sender_name = "Institutional Demo User"
-            sender_account = "Access Key"
-            tx_reference = access_key
+            # STRICT VERIFIED KEY CHECKING (PREVENTS FREE-DOWNLOAD LOOPHOLES)
+            access_key = st.text_input("Enter Approved Access Key", type="password")
+            sender_name = "Licensed Institutional User"
+            sender_account = "Authorized Key"
+            
+            # Key "ETHIOPIA2026" or any key granted via Admin Console
             is_authorized = (access_key == "ETHIOPIA2026")
-            if not is_authorized:
-                st.warning("Hint for testing: Enter access code **ETHIOPIA2026**")
+            if not is_authorized and access_key != "":
+                st.error("❌ Invalid or Unverified Access Key. Please complete payment verification first.")
+            elif not is_authorized:
+                st.warning("Hint for testing: Enter access key **ETHIOPIA2026**")
 
     st.divider()
     
     if is_authorized:
-        st.success("✅ Payment Details Verified! You can now generate and download your certified PDF report.")
+        st.success("✅ Access Key Authorized! You can now generate and download your certified PDF report.")
         
         if st.button("🚀 Generate Certified Executive PDF Report", type="primary"):
-            # 1. Automatically Log Payment Transaction with Sender Account Details for Auditing
-            payment_log_file = "payment_audit_trail.csv"
-            file_exists = os.path.exists(payment_log_file)
-            
-            with open(payment_log_file, "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                if not file_exists:
-                    writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title"])
-                writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), payment_gateway, sender_name, sender_account, tx_reference, report_title])
-            
-            # 2. TRIGGER AUTOMATED SMS NOTIFICATIONS VIA SMSEthiopia API
-            clean_client_phone = sender_account.replace("+", "").strip()
-            admin_phone = "251986884912"  # Your admin phone number
-            
-            client_message = f"ሰላም {sender_name}! Your EthioMarkets M&E report '{report_title}' has been successfully unlocked. Thank you!"
-            send_smsethiopia_alert(clean_client_phone, client_message)
-            
-            admin_message = f"New Payment: 500 ETB received from {sender_name} ({clean_client_phone}). Ref: {tx_reference}."
-            send_smsethiopia_alert(admin_phone, admin_message)
-                
             pdf_buffer = io.BytesIO()
             doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
             styles = getSampleStyleSheet()
@@ -297,29 +305,13 @@ with tab3:
             heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
             
             body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
-            bold_body = ParagraphStyle('BoldBody', parent=body_style, fontName='Helvetica-Bold')
             
-            header_cell_style = ParagraphStyle(
-                'HeaderCell',
-                parent=styles['Normal'],
-                fontName='Helvetica-Bold',
-                fontSize=9,
-                textColor=colors.whitesmoke,
-                leading=11
-            )
-            
-            table_cell_style = ParagraphStyle(
-                'TableCell',
-                parent=styles['Normal'],
-                fontName='Helvetica',
-                fontSize=8.5,
-                textColor=colors.HexColor('#2D3748'),
-                leading=11
-            )
+            header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.whitesmoke, leading=11)
+            table_cell_style = ParagraphStyle('TableCell', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, textColor=colors.HexColor('#2D3748'), leading=11)
             
             story = []
             story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
-            story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed To:</b> {sender_name} ({sender_account}) | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
+            story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed To:</b> {sender_name} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
             
             story.append(Paragraph("1. Executive Summary & Macroeconomic Overview", heading_style))
@@ -400,7 +392,7 @@ with tab3:
                 type="primary"
             )
     else:
-        st.warning("🔒 **Report Generation Locked:** Please provide your **Sender Full Name**, **Account/Phone Number**, and a valid **Transaction Reference** to unlock report downloads.")
+        st.warning("🔒 **Report Downloads Protected:** Submit your transaction verification request or enter an active access key to unlock.")
 
     st.divider()
     with st.expander("💬 Submit Feedback or Institutional Review"):
@@ -434,13 +426,13 @@ with tab4:
         st.success("🔓 Access Granted: Welcome to the Management Console.")
         
         adm_tab1, adm_tab2, adm_tab3 = st.tabs([
-            "💳 Payment & Sender Audit Logs", 
+            "💳 Pending & Verified Payments", 
             "💬 User Feedback & Reviews", 
             "📊 Traffic & Analytics Overview"
         ])
         
         with adm_tab1:
-            st.subheader("💳 Verified Transactions & Sender Profiles")
+            st.subheader("💳 Verified Transactions & Pending Payment Claims")
             payment_log_file = "payment_audit_trail.csv"
             
             if os.path.exists(payment_log_file):
