@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import os
+import csv
 from datetime import datetime
 
 # ReportLab imports for professional multi-page PDF generation
@@ -16,6 +18,19 @@ st.set_page_config(
     page_icon="🇪🇹",
     layout="wide"
 )
+
+# Optional Google Analytics Tracking Injection (Replace G-XXXXXXXXXX with your actual ID)
+ga_measurement_id = "G-XXXXXXXXXX"
+st.markdown(f"""
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={ga_measurement_id}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){{dataLayer.push(arguments);}}
+      gtag('js', new Date());
+      gtag('config', '{ga_measurement_id}');
+    </script>
+""", unsafe_allow_html=True)
 
 # PWA and Mobile-Friendly Meta Tags Injection
 st.markdown("""
@@ -35,10 +50,11 @@ st.markdown("""
 st.divider()
 
 # Navigation Tabs
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "📈 Capital Market & Treasury Yield Engine", 
     "🎯 Development M&E & Impact Scorecard", 
-    "📊 Executive Report Generator & Licensing"
+    "📊 Executive Report Generator & Licensing",
+    "🔒 Admin Dashboard"
 ])
 
 # ==============================================================================
@@ -223,6 +239,19 @@ with tab3:
         st.success("✅ Payment & Institutional Licensing Verified! You can now generate and download your certified PDF report.")
         
         if st.button("🚀 Generate Certified Executive PDF Report", type="primary"):
+            # Automatically Log Payment Transaction for Admin Auditing
+            payment_log_file = "payment_audit_trail.csv"
+            file_exists = os.path.exists(payment_log_file)
+            
+            phone_val = payer_phone if 'payer_phone' in locals() else "Access Key User"
+            ref_val = tx_reference if 'tx_reference' in locals() else access_key
+            
+            with open(payment_log_file, "a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                if not file_exists:
+                    writer.writerow(["Timestamp", "Payment Gateway", "Phone/Account", "Reference Code", "Report Title"])
+                writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), payment_gateway, phone_val, ref_val, report_title])
+                
             pdf_buffer = io.BytesIO()
             doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
             styles = getSampleStyleSheet()
@@ -235,7 +264,6 @@ with tab3:
             body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
             bold_body = ParagraphStyle('BoldBody', parent=body_style, fontName='Helvetica-Bold')
             
-            # High-contrast white text style for dark table headers
             header_cell_style = ParagraphStyle(
                 'HeaderCell',
                 parent=styles['Normal'],
@@ -245,7 +273,6 @@ with tab3:
                 leading=11
             )
             
-            # Wrapped text style for table data cells to avoid clipping/overlapping
             table_cell_style = ParagraphStyle(
                 'TableCell',
                 parent=styles['Normal'],
@@ -256,7 +283,6 @@ with tab3:
             )
             
             story = []
-            # FULLY FIXED TITLE: Completely removed any stray semicolon from M&E
             story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
             story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed Via:</b> {payment_gateway} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
             story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
@@ -269,7 +295,7 @@ with tab3:
             """
             story.append(Paragraph(summary_text, body_style))
             
-            # 2. Financial Table with Custom Portfolio Assets (Wrapped in Paragraphs for Auto-Wrapping)
+            # 2. Financial Table with Custom Portfolio Assets
             story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
             fin_data = [
                 [Paragraph("Metric / Asset", header_cell_style), Paragraph("Value / Yield", header_cell_style), Paragraph("Context / Allocation", header_cell_style)],
@@ -280,7 +306,6 @@ with tab3:
                 [Paragraph("Real Return Rate", table_cell_style), Paragraph(f"{real_return:.2f}%", table_cell_style), Paragraph("Fisher Real Return", table_cell_style)]
             ]
             
-            # Append dynamic portfolio assets safely wrapped
             for _, row in edited_portfolio.iterrows():
                 inst_name = str(row.get("Instrument Name", "Custom Asset"))
                 yld = row.get("Nominal Yield (%)", 0)
@@ -291,7 +316,6 @@ with tab3:
                     Paragraph(f"Allocation: {alloc:,.2f} ETB", table_cell_style)
                 ])
 
-            # Explicit column widths totaling 540pt to fit standard page margins cleanly
             t_fin = Table(fin_data, colWidths=[180, 140, 220])
             t_fin.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')),
@@ -302,7 +326,7 @@ with tab3:
             ]))
             story.append(t_fin)
             
-            # 3. M&E Table with Dynamic Custom KPIs (Wrapped in Paragraphs for Auto-Wrapping)
+            # 3. M&E Table with Dynamic Custom KPIs
             story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
             me_data = [
                 [Paragraph("Indicator", header_cell_style), Paragraph("Metric", header_cell_style), Paragraph("Assessment", header_cell_style)],
@@ -312,7 +336,6 @@ with tab3:
                 [Paragraph("SROI Ratio", table_cell_style), Paragraph(f"{sroi_ratio:.2f} : 1", table_cell_style), Paragraph("Social Efficiency", table_cell_style)]
             ]
             
-            # Append dynamic custom KPIs from table safely wrapped
             for _, row in edited_kpis.iterrows():
                 ind_name = str(row.get("Indicator Name", "Custom Indicator"))
                 val = row.get("Target Value", 0)
@@ -345,3 +368,85 @@ with tab3:
             )
     else:
         st.warning("🔒 **Report Generation Locked:** Please enter a valid transaction reference code or use the demo access code (`ETHIOPIA2026`) to unlock report downloads.")
+
+    # PUBLIC USER FEEDBACK & REVIEWS FORM
+    st.divider()
+    with st.expander("💬 Submit Feedback or Institutional Review"):
+        with st.form("user_review_form"):
+            reviewer_name = st.text_input("Name / Institution", placeholder="e.g., Senior M&E Officer / Commercial Bank Analyst")
+            rating = st.slider("Platform Rating", 1, 5, 5)
+            comments = st.text_area("Your Review, Feedback, or Feature Requests")
+            submit_btn = st.form_submit_button("Submit Review")
+            
+            if submit_btn:
+                feedback_file = "user_feedback.csv"
+                fb_exists = os.path.exists(feedback_file)
+                
+                with open(feedback_file, "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    if not fb_exists:
+                        writer.writerow(["Timestamp", "Name", "Rating", "Comments"])
+                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), reviewer_name, rating, comments])
+                st.success("Thank you! Your feedback has been recorded.")
+
+# ==============================================================================
+# TAB 4: ADMIN DASHBOARD (RESTRICTED ACCESS)
+# ==============================================================================
+with tab4:
+    st.header("🔒 Executive Admin Dashboard")
+    st.caption("Restricted management interface for platform administrators and financial auditors.")
+    
+    admin_password = st.text_input("Enter Admin Master Key", type="password", key="admin_key")
+    
+    if admin_password == "ETHIO_ADMIN_2026":
+        st.success("🔓 Access Granted: Welcome to the Management Console.")
+        
+        adm_tab1, adm_tab2, adm_tab3 = st.tabs([
+            "💳 Payment & Transaction Logs", 
+            "💬 User Feedback & Reviews", 
+            "📊 Traffic & Analytics Overview"
+        ])
+        
+        with adm_tab1:
+            st.subheader("💳 Verified Transaction Records")
+            payment_log_file = "payment_audit_trail.csv"
+            
+            if os.path.exists(payment_log_file):
+                df_payments = pd.read_csv(payment_log_file)
+                st.dataframe(df_payments, use_container_width=True)
+                
+                csv_data = df_payments.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Payment Audit Log (.CSV)",
+                    data=csv_data,
+                    file_name=f"Payment_Audit_Log_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("No payment transactions recorded yet. Logs will appear here automatically when users download reports.")
+
+        with adm_tab2:
+            st.subheader("💬 Community & Institutional Reviews")
+            feedback_log_file = "user_feedback.csv"
+            
+            if os.path.exists(feedback_log_file):
+                df_feedback = pd.read_csv(feedback_log_file)
+                
+                if "Rating" in df_feedback.columns:
+                    avg_rating = df_feedback["Rating"].mean()
+                    st.metric("Average Rating", f"⭐ {avg_rating:.1f} / 5.0")
+                
+                st.dataframe(df_feedback, use_container_width=True)
+            else:
+                st.info("No user reviews submitted yet.")
+
+        with adm_tab3:
+            st.subheader("📊 Platform Analytics & Traffic Reach")
+            st.markdown("""
+            **Streamlit Cloud Analytics:**  
+            View live active sessions, resources, and bandwidth metrics in your [Streamlit Cloud Dashboard](https://share.streamlit.io).
+            """)
+            st.info("💡 **Google Analytics:** Traffic stats are logged directly to your Google Analytics dashboard using tag ID `G-XXXXXXXXXX`.")
+
+    elif admin_password != "":
+        st.error("❌ Invalid Admin Password. Access Denied.")
