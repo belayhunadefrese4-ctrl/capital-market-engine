@@ -4,6 +4,7 @@ import numpy as np
 import io
 import os
 import csv
+import requests
 from datetime import datetime
 
 # ReportLab imports for professional multi-page PDF generation
@@ -40,6 +41,30 @@ st.markdown("""
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="EthioMarkets M&E">
 """, unsafe_allow_html=True)
+
+# SMSEthiopia API Notification Helper Function
+def send_smsethiopia_alert(recipient_phone, message_text):
+    """
+    Triggers an instant SMS via SMSEthiopia API.
+    """
+    api_endpoint = "https://api.smsethiopia.com/v1/sms/send"  
+    api_key = "YOUR_SMSETHIOPIA_API_KEY"                      # Replace with your SMSEthiopia API key
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "msisdn": recipient_phone,
+        "text": message_text
+    }
+    
+    try:
+        response = requests.post(api_endpoint, json=payload, headers=headers, timeout=10)
+        return response.json()
+    except Exception as e:
+        return {"sent": False, "description": str(e)}
 
 # Custom Header Section
 st.title("🇪🇹 Ethiopian Capital Market & Development M&E Analytics Engine")
@@ -223,12 +248,10 @@ with tab3:
         if payment_gateway != "Free Demo / Institutional Access Key":
             st.info(f"Report Generation Fee: **500.00 ETB**\n* Transfer to Official Account: **+251 911 000 000** (telebirr) or CBE Account **1000XXXXXXXXX**")
             
-            # STRICTER FIELDS TO CAPTURE SENDER DETAILS FOR AUDITING
             sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Ato Kebede Tadesse")
             sender_account = st.text_input("Sender Account / Phone Number", placeholder="e.g., +251 911XXXXXX")
             tx_reference = st.text_input("Transaction Reference / SMS Code", placeholder="e.g., TR12345678 or Bank Ref")
             
-            # Authorization requires proper naming and code length to stop casual cheating
             is_authorized = len(sender_name.strip()) > 3 and len(sender_account.strip()) > 6 and len(tx_reference.strip()) > 5
         else:
             access_key = st.text_input("Enter Institutional Access Code", type="password")
@@ -245,7 +268,7 @@ with tab3:
         st.success("✅ Payment Details Verified! You can now generate and download your certified PDF report.")
         
         if st.button("🚀 Generate Certified Executive PDF Report", type="primary"):
-            # Automatically Log Payment Transaction with Sender Account Details for Auditing
+            # 1. Automatically Log Payment Transaction with Sender Account Details for Auditing
             payment_log_file = "payment_audit_trail.csv"
             file_exists = os.path.exists(payment_log_file)
             
@@ -254,6 +277,16 @@ with tab3:
                 if not file_exists:
                     writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title"])
                 writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), payment_gateway, sender_name, sender_account, tx_reference, report_title])
+            
+            # 2. TRIGGER AUTOMATED SMS NOTIFICATIONS VIA SMSEthiopia API
+            clean_client_phone = sender_account.replace("+", "").strip()
+            admin_phone = "251986884912"  # Your admin phone number
+            
+            client_message = f"ሰላም {sender_name}! Your EthioMarkets M&E report '{report_title}' has been successfully unlocked. Thank you!"
+            send_smsethiopia_alert(clean_client_phone, client_message)
+            
+            admin_message = f"New Payment: 500 ETB received from {sender_name} ({clean_client_phone}). Ref: {tx_reference}."
+            send_smsethiopia_alert(admin_phone, admin_message)
                 
             pdf_buffer = io.BytesIO()
             doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
