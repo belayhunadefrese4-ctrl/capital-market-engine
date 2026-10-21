@@ -285,10 +285,20 @@ with tab3:
         is_authorized = False
 
         if payment_gateway == "1. telebirr / Remitly / Bank Transfer (Manual Verification)":
-            st.info("Report Licensing Fee: **500.00 ETB** or **$10.00 USD**\n\n* **Local telebirr:** Transfer to **`+251986884912`**\n* **International Remittance (Remitly / Sendwave / WorldRemit):** Select *telebirr* > Recipient Mobile **`+251986884912`** (Account: Belayhun Adefrese)\n* **CBE Bank Account:** Transfer to Account **`1000XXXXXXXXX`**")
+            st.info(
+                "**Report Licensing Fee:** 500.00 ETB or $10.00 USD\n\n"
+                "**📱 Option 1: Telebirr / Remitly / Sendwave**\n"
+                "* **Account Name:** Belayhun Adefrese\n"
+                "* **Phone Number:** `+251986884912`\n"
+                "* **Accepted Services:** Telebirr, Sendwave, Remitly, WorldRemit\n\n"
+                "**🏦 Option 2: Commercial Bank of Ethiopia (CBE)**\n"
+                "* **Account Name:** Belayhun Adefrese Metaferia\n"
+                "* **CBE Account:** `1000296269488`\n"
+                "* **Bank Branch:** Addis Ababa Main Branch"
+            )
             
             sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Belayhun Adefrese")
-            sender_account = st.text_input("Sender Mobile / Account Number", placeholder="e.g., +251986884912")
+            sender_account = st.text_input("Sender Mobile / Account Number", placeholder="e.g., +251986884912 or CBE Account")
             tx_reference = st.text_input(
                 "Transaction Reference / SMS Code / MTCN Code", 
                 placeholder="e.g., TR98234101 (telebirr) or RMT123456 (Remitly MTCN)",
