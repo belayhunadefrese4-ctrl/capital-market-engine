@@ -104,7 +104,7 @@ def initialize_chapa_checkout(email, amount, currency, tx_ref, first_name, last_
 st.title("🇪🇹 Ethiopian Capital Market & Development M&E Analytics Engine")
 st.markdown("""
 **A Comprehensive Macroeconomic, Fixed Income Yield & Social Impact Evaluation Platform**  
-*Designed for Commercial Banks, Institutional Investors, Planning Commissions, and International Development Partners.*
+*Designed for Commercial Banks, Institutional Investors, NGOs, Development Agencies, and Strategic Planning Sectors.*
 """)
 st.divider()
 
@@ -204,7 +204,7 @@ with tab1:
 # ==============================================================================
 with tab2:
     st.header("2. Project M&E, Social Return & Custom Institutional Scorecard")
-    st.caption("Aligned with Planning and Development Commission & International Donor Monitoring Frameworks.")
+    st.caption("Aligned with NGO, Development Agency & Strategic Sector Monitoring Frameworks.")
     
     col_m1, col_m2 = st.columns([1, 1])
     
@@ -212,7 +212,7 @@ with tab2:
         st.subheader("📋 Core Project Parameters")
         org_type = st.selectbox("Organization / Sector Focus", ["NGO / Non-Profit Development", "Private Enterprise / Commercial", "Impact Investor / VC", "Government / Public Sector"])
         project_title = st.text_input("Project Name / Initiative Title", "National Agricultural Productivity Enhancement Project")
-        implementing_agency = st.text_input("Implementing Organization / Bureau", "Ministry of Agriculture / Planning Commission")
+        implementing_agency = st.text_input("Implementing Organization / Bureau", "Ministry of Agriculture / NGO Sector")
         project_budget = st.number_input("Total Financial Investment (ETB)", value=10000000.0, step=500000.0)
         
         st.subheader("👥 Beneficiary & Core Metrics")
