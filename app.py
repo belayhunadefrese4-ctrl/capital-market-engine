@@ -5,6 +5,8 @@ import io
 import os
 import csv
 import requests
+import secrets
+import string
 from datetime import datetime
 
 # ReportLab imports for professional multi-page PDF generation
@@ -43,12 +45,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# HELPER FUNCTIONS: SMS GATEWAY & CHAPA PAYMENT INTEGRATION
+# HELPER FUNCTIONS: DYNAMIC KEYS, SMS & CHAPA INTEGRATION
 # ==============================================================================
+PAYMENT_LOG_FILE = "payment_audit_trail.csv"
+
+def generate_unique_key():
+    """Generates an 8-character secure single-use access key."""
+    chars = string.ascii_uppercase + string.digits
+    return "ETHIO-" + "".join(secrets.choice(chars) for _ in range(8))
+
 def send_smsethiopia_alert(recipient_phone, message_text):
-    """
-    Triggers an instant SMS notification via SMSEthiopia HTTP API.
-    """
+    """Triggers an instant SMS notification via SMSEthiopia HTTP API."""
     api_endpoint = "https://api.smsethiopia.com/v1/sms/send"
     api_key = st.secrets.get("SMSETHIOPIA_API_KEY", "YOUR_SMSETHIOPIA_API_KEY")
     
@@ -67,10 +74,7 @@ def send_smsethiopia_alert(recipient_phone, message_text):
         return {"sent": False, "description": str(e)}
 
 def initialize_chapa_checkout(email, amount, currency, tx_ref, first_name, last_name, phone_number):
-    """
-    Initializes a checkout session using the Chapa Payment Gateway API.
-    Supports local ETB (telebirr/CBE) and foreign USD credit card payments.
-    """
+    """Initializes a checkout session using Chapa API."""
     url = "https://api.chapa.co/v1/transaction/initialize"
     chapa_secret = st.secrets.get("CHAPA_SECRET_KEY", "CHASECK_TEST-xxxxxxxxxxxxxxxxxxxx")
     
@@ -97,6 +101,30 @@ def initialize_chapa_checkout(email, amount, currency, tx_ref, first_name, last_
         return res.json()
     except Exception as e:
         return {"status": "failed", "message": str(e)}
+
+def validate_and_consume_key(key_input):
+    """Checks if key exists, is active, and marks it as 'Used' after one download."""
+    if not os.path.exists(PAYMENT_LOG_FILE):
+        return False, "No key database found."
+    
+    df = pd.read_csv(PAYMENT_LOG_FILE, dtype=str).fillna("")
+    if "Access Key" not in df.columns or "Key Status" not in df.columns:
+        return False, "Database columns missing."
+    
+    match = df[(df["Access Key"] == key_input) & (df["Key Status"] == "Active")]
+    if not match.empty:
+        # Mark key as used so it cannot be reused
+        idx = match.index[0]
+        df.at[idx, "Key Status"] = "Used"
+        df.at[idx, "Used Timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        df.to_csv(PAYMENT_LOG_FILE, index=False)
+        return True, df.at[idx, "Sender Full Name"]
+    
+    used_match = df[(df["Access Key"] == key_input) & (df["Key Status"] == "Used")]
+    if not used_match.empty:
+        return False, "This single-use access key has already been consumed."
+        
+    return False, "Invalid or unverified access key."
 
 # ==============================================================================
 # MAIN INTERFACE HEADER
@@ -279,10 +307,11 @@ with tab3:
         st.subheader("💳 Secure Multi-Channel Payment & Verification")
         payment_gateway = st.selectbox(
             "Select Payment Channel", 
-            ["1. telebirr / Remitly / Bank Transfer (Manual Verification)", "2. Automated Chapa Gateway (ETB / USD Cards)", "3. Enter Verified Access Key"]
+            ["1. telebirr / Remitly / Bank Transfer (Manual Verification)", "2. Automated Chapa Gateway (ETB / USD Cards)", "3. Enter Single-Use Access Key"]
         )
         
         is_authorized = False
+        client_authorized_name = "Licensed Institutional User"
 
         if payment_gateway == "1. telebirr / Remitly / Bank Transfer (Manual Verification)":
             st.info(
@@ -307,14 +336,24 @@ with tab3:
             
             if st.button("📩 Submit Payment for Manual Verification", type="primary"):
                 if len(sender_name.strip()) > 3 and len(sender_account.strip()) > 6 and len(tx_reference.strip()) > 5:
-                    payment_log_file = "payment_audit_trail.csv"
-                    file_exists = os.path.exists(payment_log_file)
+                    file_exists = os.path.exists(PAYMENT_LOG_FILE)
                     
-                    with open(payment_log_file, "a", newline="", encoding="utf-8") as f:
+                    with open(PAYMENT_LOG_FILE, "a", newline="", encoding="utf-8") as f:
                         writer = csv.writer(f)
                         if not file_exists:
-                            writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title", "Status"])
-                        writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Manual Verification Request", sender_name, sender_account, tx_reference, report_title, "Pending Audit"])
+                            writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title", "Status", "Access Key", "Key Status", "Used Timestamp"])
+                        writer.writerow([
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                            "Manual Verification Request", 
+                            sender_name, 
+                            sender_account, 
+                            tx_reference, 
+                            report_title, 
+                            "Pending Audit", 
+                            "", 
+                            "Pending", 
+                            ""
+                        ])
                     
                     clean_client_phone = sender_account.replace("+", "").strip()
                     admin_phone = "251986884912"
@@ -322,7 +361,7 @@ with tab3:
                     admin_message = f"VERIFY PAYMENT: 500 ETB claimed by {sender_name} ({clean_client_phone}). Ref: {tx_reference}."
                     send_smsethiopia_alert(admin_phone, admin_message)
                     
-                    st.info("⏳ **Payment Claim Logged!** Our finance team is cross-checking your transaction reference against our bank/telebirr statements. Once verified, your report access key will be issued.")
+                    st.info("⏳ **Payment Claim Logged!** Our finance team is cross-checking your transaction reference against our bank/telebirr statements. Once verified, your single-use SMS access key will be sent to your mobile phone.")
                 else:
                     st.error("❌ Please fill in all fields accurately with your genuine transfer receipt details.")
 
@@ -359,118 +398,117 @@ with tab3:
                     st.error("Please fill in your email, phone, and name to proceed.")
 
         else:
-            access_key = st.text_input("Enter Approved Access Key", type="password")
-            sender_name = "Licensed Institutional User"
-            sender_account = "Authorized Key"
+            access_key_input = st.text_input("Enter Approved Single-Use Access Key", type="password", help="Keys are single-use only and lock permanently after downloading.")
             
-            is_authorized = (access_key == "ETHIOPIA2026")
-            if not is_authorized and access_key != "":
-                st.error("❌ Invalid or Unverified Access Key. Please complete payment verification first.")
-            elif not is_authorized:
-                st.warning("Hint for testing: Enter access key **ETHIOPIA2026**")
+            if access_key_input.strip():
+                valid, msg = validate_and_consume_key(access_key_input.strip())
+                if valid:
+                    is_authorized = True
+                    client_authorized_name = msg
+                else:
+                    st.error(f"❌ {msg}")
 
     st.divider()
     
     if is_authorized:
-        st.success("✅ Access Key Authorized! You can now generate and download your certified PDF report.")
+        st.success(f"✅ Key Verified for {client_authorized_name}! Your report is unlocked for a one-time download.")
         
-        if st.button("🚀 Generate Certified Executive PDF Report", type="primary"):
-            pdf_buffer = io.BytesIO()
-            doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-            styles = getSampleStyleSheet()
-            
-            title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
-            subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
-            heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
-            body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
-            
-            header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.whitesmoke, leading=11)
-            table_cell_style = ParagraphStyle('TableCell', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, textColor=colors.HexColor('#2D3748'), leading=11)
-            
-            story = []
-            story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
-            story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed To:</b> {sender_name} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
-            story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
-            
-            story.append(Paragraph("1. Executive Summary & Macroeconomic Overview", heading_style))
-            summary_text = f"""
-            This certified institutional report evaluates capital market yields against headline inflation of <b>{headline_inflation:.2f}%</b>, 
-            yielding a real purchasing power return of <b>{real_return:.2f}%</b> for <b>{security_type}</b>. 
-            M&E evaluation for <b>{project_title}</b> under sector <b>{org_type}</b> records an SROI ratio of <b>{sroi_ratio:.2f}:1</b> across <b>{total_beneficiaries:,}</b> beneficiaries.
-            """
-            story.append(Paragraph(summary_text, body_style))
-            
-            story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
-            fin_data = [
-                [Paragraph("Metric / Asset", header_cell_style), Paragraph("Value / Yield", header_cell_style), Paragraph("Context / Allocation", header_cell_style)],
-                [Paragraph("Headline Inflation", table_cell_style), Paragraph(f"{headline_inflation:.2f}%", table_cell_style), Paragraph("Macro Baseline", table_cell_style)],
-                [Paragraph("Primary Instrument", table_cell_style), Paragraph(str(security_type), table_cell_style), Paragraph("Selected Asset", table_cell_style)],
-                [Paragraph("Effective Annual Yield", table_cell_style), Paragraph(f"{eay:.2f}%", table_cell_style), Paragraph("Compounded Return", table_cell_style)],
-                [Paragraph("Net Earnings Post-Tax", table_cell_style), Paragraph(f"{net_profit:,.2f} ETB", table_cell_style), Paragraph(f"Tax: {withholding_tax_rate}%", table_cell_style)],
-                [Paragraph("Real Return Rate", table_cell_style), Paragraph(f"{real_return:.2f}%", table_cell_style), Paragraph("Fisher Real Return", table_cell_style)]
-            ]
-            
-            for _, row in edited_portfolio.iterrows():
-                inst_name = str(row.get("Instrument Name", "Custom Asset"))
-                yld = row.get("Nominal Yield (%)", 0)
-                alloc = row.get("Allocation (ETB)", 0)
-                fin_data.append([
-                    Paragraph(inst_name, table_cell_style),
-                    Paragraph(f"{yld:.2f}% Nominal", table_cell_style),
-                    Paragraph(f"Allocation: {alloc:,.2f} ETB", table_cell_style)
-                ])
+        pdf_buffer = io.BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+        styles = getSampleStyleSheet()
+        
+        title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
+        subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
+        heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
+        body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
+        
+        header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.whitesmoke, leading=11)
+        table_cell_style = ParagraphStyle('TableCell', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, textColor=colors.HexColor('#2D3748'), leading=11)
+        
+        story = []
+        story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
+        story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed To:</b> {client_authorized_name} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
+        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
+        
+        story.append(Paragraph("1. Executive Summary & Macroeconomic Overview", heading_style))
+        summary_text = f"""
+        This certified institutional report evaluates capital market yields against headline inflation of <b>{headline_inflation:.2f}%</b>, 
+        yielding a real purchasing power return of <b>{real_return:.2f}%</b> for <b>{security_type}</b>. 
+        M&E evaluation for <b>{project_title}</b> under sector <b>{org_type}</b> records an SROI ratio of <b>{sroi_ratio:.2f}:1</b> across <b>{total_beneficiaries:,}</b> beneficiaries.
+        """
+        story.append(Paragraph(summary_text, body_style))
+        
+        story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
+        fin_data = [
+            [Paragraph("Metric / Asset", header_cell_style), Paragraph("Value / Yield", header_cell_style), Paragraph("Context / Allocation", header_cell_style)],
+            [Paragraph("Headline Inflation", table_cell_style), Paragraph(f"{headline_inflation:.2f}%", table_cell_style), Paragraph("Macro Baseline", table_cell_style)],
+            [Paragraph("Primary Instrument", table_cell_style), Paragraph(str(security_type), table_cell_style), Paragraph("Selected Asset", table_cell_style)],
+            [Paragraph("Effective Annual Yield", table_cell_style), Paragraph(f"{eay:.2f}%", table_cell_style), Paragraph("Compounded Return", table_cell_style)],
+            [Paragraph("Net Earnings Post-Tax", table_cell_style), Paragraph(f"{net_profit:,.2f} ETB", table_cell_style), Paragraph(f"Tax: {withholding_tax_rate}%", table_cell_style)],
+            [Paragraph("Real Return Rate", table_cell_style), Paragraph(f"{real_return:.2f}%", table_cell_style), Paragraph("Fisher Real Return", table_cell_style)]
+        ]
+        
+        for _, row in edited_portfolio.iterrows():
+            inst_name = str(row.get("Instrument Name", "Custom Asset"))
+            yld = row.get("Nominal Yield (%)", 0)
+            alloc = row.get("Allocation (ETB)", 0)
+            fin_data.append([
+                Paragraph(inst_name, table_cell_style),
+                Paragraph(f"{yld:.2f}% Nominal", table_cell_style),
+                Paragraph(f"Allocation: {alloc:,.2f} ETB", table_cell_style)
+            ])
 
-            t_fin = Table(fin_data, colWidths=[180, 140, 220])
-            t_fin.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')),
-                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('TOPPADDING', (0,0), (-1,-1), 5),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-            ]))
-            story.append(t_fin)
-            
-            story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
-            me_data = [
-                [Paragraph("Indicator", header_cell_style), Paragraph("Metric", header_cell_style), Paragraph("Assessment", header_cell_style)],
-                [Paragraph("Project Title", table_cell_style), Paragraph(str(project_title), table_cell_style), Paragraph(str(implementing_agency), table_cell_style)],
-                [Paragraph("Total Budget", table_cell_style), Paragraph(f"{project_budget:,.2f} ETB", table_cell_style), Paragraph("Capital Outlay", table_cell_style)],
-                [Paragraph("Direct Beneficiaries", table_cell_style), Paragraph(f"{direct_beneficiaries:,}", table_cell_style), Paragraph(f"Cost: {cost_per_direct:,.2f} ETB/person", table_cell_style)],
-                [Paragraph("SROI Ratio", table_cell_style), Paragraph(f"{sroi_ratio:.2f} : 1", table_cell_style), Paragraph("Social Efficiency", table_cell_style)]
-            ]
-            
-            for _, row in edited_kpis.iterrows():
-                ind_name = str(row.get("Indicator Name", "Custom Indicator"))
-                val = row.get("Target Value", 0)
-                unit = str(row.get("Unit", ""))
-                me_data.append([
-                    Paragraph(ind_name, table_cell_style),
-                    Paragraph(f"{val:,.0f} {unit}", table_cell_style),
-                    Paragraph("Custom Indicator Target", table_cell_style)
-                ])
+        t_fin = Table(fin_data, colWidths=[180, 140, 220])
+        t_fin.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.append(t_fin)
+        
+        story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
+        me_data = [
+            [Paragraph("Indicator", header_cell_style), Paragraph("Metric", header_cell_style), Paragraph("Assessment", header_cell_style)],
+            [Paragraph("Project Title", table_cell_style), Paragraph(str(project_title), table_cell_style), Paragraph(str(implementing_agency), table_cell_style)],
+            [Paragraph("Total Budget", table_cell_style), Paragraph(f"{project_budget:,.2f} ETB", table_cell_style), Paragraph("Capital Outlay", table_cell_style)],
+            [Paragraph("Direct Beneficiaries", table_cell_style), Paragraph(f"{direct_beneficiaries:,}", table_cell_style), Paragraph(f"Cost: {cost_per_direct:,.2f} ETB/person", table_cell_style)],
+            [Paragraph("SROI Ratio", table_cell_style), Paragraph(f"{sroi_ratio:.2f} : 1", table_cell_style), Paragraph("Social Efficiency", table_cell_style)]
+        ]
+        
+        for _, row in edited_kpis.iterrows():
+            ind_name = str(row.get("Indicator Name", "Custom Indicator"))
+            val = row.get("Target Value", 0)
+            unit = str(row.get("Unit", ""))
+            me_data.append([
+                Paragraph(ind_name, table_cell_style),
+                Paragraph(f"{val:,.0f} {unit}", table_cell_style),
+                Paragraph("Custom Indicator Target", table_cell_style)
+            ])
 
-            t_me = Table(me_data, colWidths=[180, 140, 220])
-            t_me.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
-                ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('TOPPADDING', (0,0), (-1,-1), 5),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-            ]))
-            story.append(t_me)
-            
-            doc.build(story)
-            pdf_buffer.seek(0)
-            
-            st.download_button(
-                label="📥 Download Certified Institutional Report (.PDF)",
-                data=pdf_buffer,
-                file_name=f"Certified_Ethiopia_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
-                mime="application/pdf",
-                type="primary"
-            )
+        t_me = Table(me_data, colWidths=[180, 140, 220])
+        t_me.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ]))
+        story.append(t_me)
+        
+        doc.build(story)
+        pdf_buffer.seek(0)
+        
+        st.download_button(
+            label="📥 Download Certified Institutional Report (.PDF)",
+            data=pdf_buffer,
+            file_name=f"Certified_Ethiopia_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            type="primary"
+        )
     else:
-        st.warning("🔒 **Report Downloads Protected:** Submit your transaction verification request or enter an active access key to unlock.")
+        st.warning("🔒 **Report Downloads Protected:** Submit your transaction verification request or enter an active single-use access key to unlock.")
 
     st.divider()
     with st.expander("💬 Submit Feedback or Institutional Review"):
@@ -492,7 +530,7 @@ with tab3:
                 st.success("Thank you! Your feedback has been recorded.")
 
 # ==============================================================================
-# TAB 4: ADMIN DASHBOARD (RESTRICTED ACCESS)
+# TAB 4: ADMIN DASHBOARD (RESTRICTED ACCESS & 1-CLICK SMS APPROVAL)
 # ==============================================================================
 with tab4:
     st.header("🔒 Executive Admin Dashboard")
@@ -511,13 +549,50 @@ with tab4:
         
         with adm_tab1:
             st.subheader("💳 Verified Transactions & Pending Payment Claims")
-            payment_log_file = "payment_audit_trail.csv"
             
-            if os.path.exists(payment_log_file):
+            if os.path.exists(PAYMENT_LOG_FILE):
                 try:
-                    df_payments = pd.read_csv(payment_log_file, on_bad_lines='skip')
+                    df_payments = pd.read_csv(PAYMENT_LOG_FILE, dtype=str).fillna("")
+                    
+                    # Display existing transactions
                     st.dataframe(df_payments, use_container_width=True)
                     
+                    st.divider()
+                    st.subheader("⚡ One-Click Payment Approval & SMS Key Dispatch")
+                    
+                    pending_rows = df_payments[df_payments["Status"] == "Pending Audit"]
+                    
+                    if not pending_rows.empty:
+                        for idx, row in pending_rows.iterrows():
+                            c1, c2, c3, c4 = st.columns([2, 2, 2, 3])
+                            with c1:
+                                st.write(f"**Name:** {row['Sender Full Name']}")
+                            with c2:
+                                st.write(f"**Phone:** `{row['Sender Account/Phone']}`")
+                            with c3:
+                                st.write(f"**Ref:** `{row['Reference Code']}`")
+                            with c4:
+                                if st.button(f"📲 Approve & Send SMS Key to {row['Sender Full Name']}", key=f"btn_approve_{idx}", type="primary"):
+                                    # Generate new unique key
+                                    new_key = generate_unique_key()
+                                    clean_phone = row['Sender Account/Phone'].replace("+", "").strip()
+                                    
+                                    # Update CSV record
+                                    df_payments.at[idx, "Status"] = "Approved"
+                                    df_payments.at[idx, "Access Key"] = new_key
+                                    df_payments.at[idx, "Key Status"] = "Active"
+                                    df_payments.to_csv(PAYMENT_LOG_FILE, index=False)
+                                    
+                                    # Dispatch SMS to Client
+                                    sms_msg = f"EthioMarkets: Your payment is verified! Use access key '{new_key}' to unlock and download your PDF report."
+                                    sms_res = send_smsethiopia_alert(clean_phone, sms_msg)
+                                    
+                                    st.success(f"✅ Approved! Key '{new_key}' dispatched to {clean_phone} via SMS.")
+                                    st.rerun()
+                    else:
+                        st.info("🎉 No pending payment claims awaiting audit.")
+                    
+                    st.divider()
                     csv_data = df_payments.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         label="📥 Download Payment Audit Log (.CSV)",
@@ -525,9 +600,8 @@ with tab4:
                         file_name=f"Payment_Audit_Log_{datetime.now().strftime('%Y%m%d')}.csv",
                         mime="text/csv"
                     )
-                except Exception:
-                    os.remove(payment_log_file)
-                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error loading logs: {e}")
             else:
                 st.info("No payment transactions recorded yet.")
 
