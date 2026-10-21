@@ -294,7 +294,7 @@ with tab3:
                 "**🏦 Option 2: Commercial Bank of Ethiopia (CBE)**\n"
                 "* **Account Name:** Belayhun Adefrese Metaferia\n"
                 "* **CBE Account:** `1000296269488`\n"
-                "* **Bank Branch:** Addis Ababa Main Branch"
+                "* **Bank Branch:** Lem Area Branch (Addis Ababa)"
             )
             
             sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Belayhun Adefrese")
