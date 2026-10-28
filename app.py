@@ -45,14 +45,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# HELPER FUNCTIONS: DYNAMIC KEYS, SMS & CHAPA INTEGRATION
+# HELPER FUNCTIONS: SMS ALERTS & AUDIT LOGGING
 # ==============================================================================
 PAYMENT_LOG_FILE = "payment_audit_trail.csv"
-
-def generate_unique_key():
-    """Generates an 8-character secure single-use access key."""
-    chars = string.ascii_uppercase + string.digits
-    return "ETHIO-" + "".join(secrets.choice(chars) for _ in range(8))
 
 def send_smsethiopia_alert(recipient_phone, message_text):
     """Triggers an instant SMS notification via SMSEthiopia HTTP API."""
@@ -73,58 +68,6 @@ def send_smsethiopia_alert(recipient_phone, message_text):
     except Exception as e:
         return {"sent": False, "description": str(e)}
 
-def initialize_chapa_checkout(email, amount, currency, tx_ref, first_name, last_name, phone_number):
-    """Initializes a checkout session using Chapa API."""
-    url = "https://api.chapa.co/v1/transaction/initialize"
-    chapa_secret = st.secrets.get("CHAPA_SECRET_KEY", "CHASECK_TEST-xxxxxxxxxxxxxxxxxxxx")
-    
-    headers = {
-        "Authorization": f"Bearer {chapa_secret}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "amount": str(amount),
-        "currency": currency,
-        "email": email,
-        "first_name": first_name,
-        "last_name": last_name,
-        "phone_number": phone_number,
-        "tx_ref": tx_ref,
-        "callback_url": "https://share.streamlit.io",
-        "customization": {
-            "title": "EthioMarkets PDF License",
-            "description": "Ethiopian Capital Market & Impact Analytics Briefing"
-        }
-    }
-    try:
-        res = requests.post(url, json=payload, headers=headers, timeout=10)
-        return res.json()
-    except Exception as e:
-        return {"status": "failed", "message": str(e)}
-
-def validate_and_consume_key(key_input):
-    """Checks if key exists, is active, and marks it as 'Used' after one download."""
-    if not os.path.exists(PAYMENT_LOG_FILE):
-        return False, "No key database found."
-    
-    df = pd.read_csv(PAYMENT_LOG_FILE, dtype=str).fillna("")
-    if "Access Key" not in df.columns or "Key Status" not in df.columns:
-        return False, "Database columns missing."
-    
-    match = df[(df["Access Key"] == key_input) & (df["Key Status"] == "Active")]
-    if not match.empty:
-        idx = match.index[0]
-        df.at[idx, "Key Status"] = "Used"
-        df.at[idx, "Used Timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        df.to_csv(PAYMENT_LOG_FILE, index=False)
-        return True, df.at[idx, "Sender Full Name"]
-    
-    used_match = df[(df["Access Key"] == key_input) & (df["Key Status"] == "Used")]
-    if not used_match.empty:
-        return False, "This single-use access key has already been consumed."
-        
-    return False, "Invalid or unverified access key."
-
 # ==============================================================================
 # MAIN INTERFACE HEADER
 # ==============================================================================
@@ -139,7 +82,7 @@ st.divider()
 tab1, tab2, tab3, tab4 = st.tabs([
     "📈 Capital Market & Treasury Yield Engine", 
     "🎯 Development M&E & Impact Scorecard", 
-    "📊 Executive Report Generator & Licensing",
+    "📊 Executive Report Generator",
     "🔒 Admin Dashboard"
 ])
 
@@ -288,226 +231,121 @@ with tab2:
             st.info(f"**Moderate Impact Efficiency (SROI: {sroi_ratio:.2f}:1)**")
 
 # ==============================================================================
-# TAB 3: EXECUTIVE REPORT GENERATOR & MULTI-CHANNEL PAYMENT GATEWAY
+# TAB 3: EXECUTIVE REPORT GENERATOR (FREE PORTFOLIO ACCESS)
 # ==============================================================================
 with tab3:
-    st.header("3. Executive PDF Report & Institutional Licensing Gateway")
-    st.markdown("Unlock certified institutional reports by completing payment via **telebirr**, **International Remittance**, **CBE Bank Transfer**, or **USD Credit Cards**.")
+    st.header("3. Executive PDF Report Generator")
+    st.markdown("Generate and download professional institutional reports instantly for portfolio review, recruitment evaluation, and stakeholder analysis.")
     
     col_rep1, col_rep2 = st.columns([1, 1])
     
     with col_rep1:
         st.subheader("📝 Report Configuration")
         report_title = st.text_input("Document Title", "Ethiopian Capital Market & Impact Performance Evaluation Briefing")
-        prepared_by = st.text_input("Prepared By (Author / Analyst)", "Economic Planning & Financial Analytics Division")
+        prepared_by = st.text_input("Prepared By (Author / Analyst)", "Belayhun Adefrese Metaferia (M.Sc. Dev. Economics)")
         exec_comments = st.text_area("Custom Executive Remarks", "Evaluates capital allocation efficiency and inflation adjustments for institutional review.")
 
     with col_rep2:
-        st.subheader("💳 Secure Multi-Channel Payment & Verification")
-        payment_gateway = st.selectbox(
-            "Select Payment Channel", 
-            ["1. telebirr / Remitly / Bank Transfer (Manual Verification)", "2. Automated Chapa Gateway (ETB / USD Cards)", "3. Enter Single-Use Access Key"]
-        )
-        
-        is_authorized = False
-        client_authorized_name = "Licensed Institutional User"
-
-        if payment_gateway == "1. telebirr / Remitly / Bank Transfer (Manual Verification)":
-            st.info(
-                "**Report Licensing Fee:** 500.00 ETB or $10.00 USD\n\n"
-                "**📱 Option 1: Telebirr / Remitly / Sendwave**\n"
-                "* **Account Name:** Belayhun Adefrese\n"
-                "* **Phone Number:** `+251986884912`\n"
-                "* **Accepted Services:** Telebirr, Sendwave, Remitly, WorldRemit\n\n"
-                "**🏦 Option 2: Commercial Bank of Ethiopia (CBE)**\n"
-                "* **Account Name:** Belayhun Adefrese Metaferia\n"
-                "* **CBE Account:** `1000296269488`\n"
-                "* **Bank Branch:** Lem Area Branch (Addis Ababa)"
-            )
-            
-            sender_name = st.text_input("Sender Full Name (Account Holder)", placeholder="e.g., Belayhun Adefrese")
-            sender_account = st.text_input("Sender Mobile / Account Number", placeholder="e.g., +251986884912 or CBE Account")
-            tx_reference = st.text_input(
-                "Transaction Reference / SMS Code / MTCN Code", 
-                placeholder="e.g., TR98234101 (telebirr) or RMT123456 (Remitly MTCN)",
-                help="Enter the exact receipt code from your transfer confirmation SMS or remittance email."
-            )
-            
-            if st.button("📩 Submit Payment for Manual Verification", type="primary"):
-                if len(sender_name.strip()) > 3 and len(sender_account.strip()) > 6 and len(tx_reference.strip()) > 5:
-                    file_exists = os.path.exists(PAYMENT_LOG_FILE)
-                    
-                    with open(PAYMENT_LOG_FILE, "a", newline="", encoding="utf-8") as f:
-                        writer = csv.writer(f)
-                        if not file_exists:
-                            writer.writerow(["Timestamp", "Payment Gateway", "Sender Full Name", "Sender Account/Phone", "Reference Code", "Report Title", "Status", "Access Key", "Key Status", "Used Timestamp"])
-                        writer.writerow([
-                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                            "Manual Verification Request", 
-                            sender_name, 
-                            sender_account, 
-                            tx_reference, 
-                            report_title, 
-                            "Pending Audit", 
-                            "", 
-                            "Pending", 
-                            ""
-                        ])
-                    
-                    clean_client_phone = sender_account.replace("+", "").strip()
-                    admin_phone = "251986884912"
-                    
-                    admin_message = f"VERIFY PAYMENT: 500 ETB claimed by {sender_name} ({clean_client_phone}). Ref: {tx_reference}."
-                    send_smsethiopia_alert(admin_phone, admin_message)
-                    
-                    st.info("⏳ **Payment Claim Logged!** Our finance team is cross-checking your transaction reference against our bank/telebirr statements. Once verified, your single-use SMS access key will be sent to your mobile phone.")
-                else:
-                    st.error("❌ Please fill in all fields accurately with your genuine transfer receipt details.")
-
-        elif payment_gateway == "2. Automated Chapa Gateway (ETB / USD Cards)":
-            st.caption("Automated instant verification for local ETB mobile money and foreign USD Visa/Mastercard transactions.")
-            ch_currency = st.radio("Select Billing Currency", ["ETB (500.00 ETB)", "USD ($10.00 USD)"])
-            ch_amount = 500.0 if "ETB" in ch_currency else 10.0
-            curr_code = "ETB" if "ETB" in ch_currency else "USD"
-            
-            ch_email = st.text_input("Customer Email Address", placeholder="user@institution.com")
-            ch_phone = st.text_input("Mobile Phone Number", placeholder="251911XXXXXX")
-            ch_name = st.text_input("Full Name", placeholder="Ato Kebede Tadesse")
-            
-            if st.button("🚀 Proceed to Chapa Payment Gateway", type="primary"):
-                if ch_email and ch_phone and ch_name:
-                    tx_ref = f"ETHIO-{curr_code}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-                    ch_res = initialize_chapa_checkout(
-                        email=ch_email,
-                        amount=ch_amount,
-                        currency=curr_code,
-                        tx_ref=tx_ref,
-                        first_name=ch_name.split()[0],
-                        last_name=ch_name.split()[-1] if len(ch_name.split()) > 1 else "User",
-                        phone_number=ch_phone
-                    )
-                    
-                    if ch_res.get("status") == "success":
-                        checkout_url = ch_res["data"]["checkout_url"]
-                        st.success("✅ Payment session created!")
-                        st.markdown(f"[👉 Click Here to Open Secure Payment Checkout Page]({checkout_url})")
-                    else:
-                        st.error(f"Gateway Error: {ch_res.get('message', 'Initialization failed')}")
-                else:
-                    st.error("Please fill in your email, phone, and name to proceed.")
-
-        else:
-            access_key_input = st.text_input("Enter Approved Single-Use Access Key", type="password", help="Keys are single-use only and lock permanently after downloading.")
-            
-            if access_key_input.strip():
-                valid, msg = validate_and_consume_key(access_key_input.strip())
-                if valid:
-                    is_authorized = True
-                    client_authorized_name = msg
-                else:
-                    st.error(f"❌ {msg}")
+        st.subheader("📥 Instant Portfolio Access")
+        st.success("✅ **Open Access Enabled:** All institutional reports are fully unlocked for instant free download for recruiters and professional visitors.")
 
     st.divider()
     
-    if is_authorized:
-        st.success(f"✅ Key Verified for {client_authorized_name}! Your report is unlocked for a one-time download.")
-        
-        pdf_buffer = io.BytesIO()
-        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
-        styles = getSampleStyleSheet()
-        
-        title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
-        subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
-        heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
-        body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
-        
-        header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.whitesmoke, leading=11)
-        table_cell_style = ParagraphStyle('TableCell', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, textColor=colors.HexColor('#2D3748'), leading=11)
-        
-        story = []
-        story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
-        story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Licensed To:</b> {client_authorized_name} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
-        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
-        
-        story.append(Paragraph("1. Executive Summary & Macroeconomic Overview", heading_style))
-        summary_text = f"""
-        This certified institutional report evaluates capital market yields against headline inflation of <b>{headline_inflation:.2f}%</b>, 
-        yielding a real purchasing power return of <b>{real_return:.2f}%</b> for <b>{security_type}</b>. 
-        M&E evaluation for <b>{project_title}</b> under sector <b>{org_type}</b> records an SROI ratio of <b>{sroi_ratio:.2f}:1</b> across <b>{total_beneficiaries:,}</b> beneficiaries.
-        """
-        story.append(Paragraph(summary_text, body_style))
-        
-        story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
-        fin_data = [
-            [Paragraph("Metric / Asset", header_cell_style), Paragraph("Value / Yield", header_cell_style), Paragraph("Context / Allocation", header_cell_style)],
-            [Paragraph("Headline Inflation", table_cell_style), Paragraph(f"{headline_inflation:.2f}%", table_cell_style), Paragraph("Macro Baseline", table_cell_style)],
-            [Paragraph("Primary Instrument", table_cell_style), Paragraph(str(security_type), table_cell_style), Paragraph("Selected Asset", table_cell_style)],
-            [Paragraph("Effective Annual Yield", table_cell_style), Paragraph(f"{eay:.2f}%", table_cell_style), Paragraph("Compounded Return", table_cell_style)],
-            [Paragraph("Net Earnings Post-Tax", table_cell_style), Paragraph(f"{net_profit:,.2f} ETB", table_cell_style), Paragraph(f"Tax: {withholding_tax_rate}%", table_cell_style)],
-            [Paragraph("Real Return Rate", table_cell_style), Paragraph(f"{real_return:.2f}%", table_cell_style), Paragraph("Fisher Real Return", table_cell_style)]
-        ]
-        
-        for _, row in edited_portfolio.iterrows():
-            inst_name = str(row.get("Instrument Name", "Custom Asset"))
-            yld = row.get("Nominal Yield (%)", 0)
-            alloc = row.get("Allocation (ETB)", 0)
-            fin_data.append([
-                Paragraph(inst_name, table_cell_style),
-                Paragraph(f"{yld:.2f}% Nominal", table_cell_style),
-                Paragraph(f"Allocation: {alloc:,.2f} ETB", table_cell_style)
-            ])
+    # Automatically generate and display the instant download button
+    pdf_buffer = io.BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, textColor=colors.HexColor('#1A365D'), spaceAfter=6)
+    subtitle_style = ParagraphStyle('DocSubTitle', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#4A5568'), spaceAfter=10)
+    heading_style = ParagraphStyle('SectionHeading', fontSize=10.5, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
+    body_style = ParagraphStyle('Body', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#2D3748'), spaceAfter=4, leading=12)
+    
+    header_cell_style = ParagraphStyle('HeaderCell', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=colors.whitesmoke, leading=11)
+    table_cell_style = ParagraphStyle('TableCell', parent=styles['Normal'], fontName='Helvetica', fontSize=8.5, textColor=colors.HexColor('#2D3748'), leading=11)
+    
+    story = []
+    story.append(Paragraph("<b>ETHIOPIAN CAPITAL MARKET & DEVELOPMENT M&E ENGINE</b>", title_style))
+    story.append(Paragraph(f"<b>Title:</b> {report_title} | <b>Sector:</b> {org_type} | <b>Analyst:</b> {prepared_by} | <b>Date:</b> {datetime.now().strftime('%Y-%m-%d')}", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#1A365D'), spaceAfter=10))
+    
+    story.append(Paragraph("1. Executive Summary & Macroeconomic Overview", heading_style))
+    summary_text = f"""
+    This certified institutional report evaluates capital market yields against headline inflation of <b>{headline_inflation:.2f}%</b>, 
+    yielding a real purchasing power return of <b>{real_return:.2f}%</b> for <b>{security_type}</b>. 
+    M&E evaluation for <b>{project_title}</b> under sector <b>{org_type}</b> records an SROI ratio of <b>{sroi_ratio:.2f}:1</b> across <b>{total_beneficiaries:,}</b> beneficiaries.
+    """
+    story.append(Paragraph(summary_text, body_style))
+    
+    story.append(Paragraph("2. Financial Yield & Custom Portfolio Scorecard", heading_style))
+    fin_data = [
+        [Paragraph("Metric / Asset", header_cell_style), Paragraph("Value / Yield", header_cell_style), Paragraph("Context / Allocation", header_cell_style)],
+        [Paragraph("Headline Inflation", table_cell_style), Paragraph(f"{headline_inflation:.2f}%", table_cell_style), Paragraph("Macro Baseline", table_cell_style)],
+        [Paragraph("Primary Instrument", table_cell_style), Paragraph(str(security_type), table_cell_style), Paragraph("Selected Asset", table_cell_style)],
+        [Paragraph("Effective Annual Yield", table_cell_style), Paragraph(f"{eay:.2f}%", table_cell_style), Paragraph("Compounded Return", table_cell_style)],
+        [Paragraph("Net Earnings Post-Tax", table_cell_style), Paragraph(f"{net_profit:,.2f} ETB", table_cell_style), Paragraph(f"Tax: {withholding_tax_rate}%", table_cell_style)],
+        [Paragraph("Real Return Rate", table_cell_style), Paragraph(f"{real_return:.2f}%", table_cell_style), Paragraph("Fisher Real Return", table_cell_style)]
+    ]
+    
+    for _, row in edited_portfolio.iterrows():
+        inst_name = str(row.get("Instrument Name", "Custom Asset"))
+        yld = row.get("Nominal Yield (%)", 0)
+        alloc = row.get("Allocation (ETB)", 0)
+        fin_data.append([
+            Paragraph(inst_name, table_cell_style),
+            Paragraph(f"{yld:.2f}% Nominal", table_cell_style),
+            Paragraph(f"Allocation: {alloc:,.2f} ETB", table_cell_style)
+        ])
 
-        t_fin = Table(fin_data, colWidths=[180, 140, 220])
-        t_fin.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-        ]))
-        story.append(t_fin)
-        
-        story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
-        me_data = [
-            [Paragraph("Indicator", header_cell_style), Paragraph("Metric", header_cell_style), Paragraph("Assessment", header_cell_style)],
-            [Paragraph("Project Title", table_cell_style), Paragraph(str(project_title), table_cell_style), Paragraph(str(implementing_agency), table_cell_style)],
-            [Paragraph("Total Budget", table_cell_style), Paragraph(f"{project_budget:,.2f} ETB", table_cell_style), Paragraph("Capital Outlay", table_cell_style)],
-            [Paragraph("Direct Beneficiaries", table_cell_style), Paragraph(f"{direct_beneficiaries:,}", table_cell_style), Paragraph(f"Cost: {cost_per_direct:,.2f} ETB/person", table_cell_style)],
-            [Paragraph("SROI Ratio", table_cell_style), Paragraph(f"{sroi_ratio:.2f} : 1", table_cell_style), Paragraph("Social Efficiency", table_cell_style)]
-        ]
-        
-        for _, row in edited_kpis.iterrows():
-            ind_name = str(row.get("Indicator Name", "Custom Indicator"))
-            val = row.get("Target Value", 0)
-            unit = str(row.get("Unit", ""))
-            me_data.append([
-                Paragraph(ind_name, table_cell_style),
-                Paragraph(f"{val:,.0f} {unit}", table_cell_style),
-                Paragraph("Custom Indicator Target", table_cell_style)
-            ])
+    t_fin = Table(fin_data, colWidths=[180, 140, 220])
+    t_fin.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(t_fin)
+    
+    story.append(Paragraph("3. Impact, M&E & Custom Institutional KPIs", heading_style))
+    me_data = [
+        [Paragraph("Indicator", header_cell_style), Paragraph("Metric", header_cell_style), Paragraph("Assessment", header_cell_style)],
+        [Paragraph("Project Title", table_cell_style), Paragraph(str(project_title), table_cell_style), Paragraph(str(implementing_agency), table_cell_style)],
+        [Paragraph("Total Budget", table_cell_style), Paragraph(f"{project_budget:,.2f} ETB", table_cell_style), Paragraph("Capital Outlay", table_cell_style)],
+        [Paragraph("Direct Beneficiaries", table_cell_style), Paragraph(f"{direct_beneficiaries:,}", table_cell_style), Paragraph(f"Cost: {cost_per_direct:,.2f} ETB/person", table_cell_style)],
+        [Paragraph("SROI Ratio", table_cell_style), Paragraph(f"{sroi_ratio:.2f} : 1", table_cell_style), Paragraph("Social Efficiency", table_cell_style)]
+    ]
+    
+    for _, row in edited_kpis.iterrows():
+        ind_name = str(row.get("Indicator Name", "Custom Indicator"))
+        val = row.get("Target Value", 0)
+        unit = str(row.get("Unit", ""))
+        me_data.append([
+            Paragraph(ind_name, table_cell_style),
+            Paragraph(f"{val:,.0f} {unit}", table_cell_style),
+            Paragraph("Custom Indicator Target", table_cell_style)
+        ])
 
-        t_me = Table(me_data, colWidths=[180, 140, 220])
-        t_me.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-        ]))
-        story.append(t_me)
-        
-        doc.build(story)
-        pdf_buffer.seek(0)
-        
-        st.download_button(
-            label="📥 Download Certified Institutional Report (.PDF)",
-            data=pdf_buffer,
-            file_name=f"Certified_Ethiopia_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
-            mime="application/pdf",
-            type="primary"
-        )
-    else:
-        st.warning("🔒 **Report Downloads Protected:** Submit your transaction verification request or enter an active single-use access key to unlock.")
+    t_me = Table(me_data, colWidths=[180, 140, 220])
+    t_me.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(t_me)
+    
+    doc.build(story)
+    pdf_buffer.seek(0)
+    
+    st.download_button(
+        label="📥 Download Certified Institutional Report (.PDF)",
+        data=pdf_buffer,
+        file_name=f"Certified_Ethiopia_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
+        mime="application/pdf",
+        type="primary"
+    )
 
     st.divider()
     with st.expander("💬 Submit Feedback or Institutional Review"):
@@ -529,7 +367,7 @@ with tab3:
                 st.success("Thank you! Your feedback has been recorded.")
 
 # ==============================================================================
-# TAB 4: ADMIN DASHBOARD (RESTRICTED ACCESS & 1-CLICK SMS APPROVAL)
+# TAB 4: ADMIN DASHBOARD (RESTRICTED ACCESS)
 # ==============================================================================
 with tab4:
     st.header("🔒 Executive Admin Dashboard")
@@ -540,56 +378,12 @@ with tab4:
     if admin_password == "ETHIO_ADMIN_2026":
         st.success("🔓 Access Granted: Welcome to the Management Console.")
         
-        adm_tab1, adm_tab2, adm_tab3 = st.tabs([
-            "💳 Pending & Verified Payments", 
+        adm_tab1, adm_tab2 = st.tabs([
             "💬 User Feedback & Reviews", 
             "📊 Traffic & Analytics Overview"
         ])
         
         with adm_tab1:
-            st.subheader("💳 Verified Transactions & Pending Payment Claims")
-            
-            if os.path.exists(PAYMENT_LOG_FILE):
-                try:
-                    df_payments = pd.read_csv(PAYMENT_LOG_FILE, dtype=str).fillna("")
-                    st.dataframe(df_payments, use_container_width=True)
-                    
-                    st.divider()
-                    st.subheader("⚡ One-Click Payment Approval & SMS Key Dispatch")
-                    
-                    pending_rows = df_payments[df_payments["Status"] == "Pending Audit"]
-                    
-                    if not pending_rows.empty:
-                        for idx, row in pending_rows.iterrows():
-                            c1, c2, c3, c4 = st.columns([2, 2, 2, 3])
-                            with c1:
-                                st.write(f"**Name:** {row['Sender Full Name']}")
-                            with c2:
-                                st.write(f"**Phone:** `{row['Sender Account/Phone']}`")
-                            with c3:
-                                st.write(f"**Ref:** `{row['Reference Code']}`")
-                            with c4:
-                                if st.button(f"📲 Approve & Send SMS Key", key=f"btn_approve_{idx}", type="primary"):
-                                    new_key = generate_unique_key()
-                                    clean_phone = row['Sender Account/Phone'].replace("+", "").strip()
-                                    
-                                    df_payments.at[idx, "Status"] = "Approved"
-                                    df_payments.at[idx, "Access Key"] = new_key
-                                    df_payments.at[idx, "Key Status"] = "Active"
-                                    df_payments.to_csv(PAYMENT_LOG_FILE, index=False)
-                                    
-                                    sms_msg = f"Your EthioMarkets M&E access key is: {new_key}. Use this key once to download your certified PDF report."
-                                    send_smsethiopia_alert(clean_phone, sms_msg)
-                                    st.success(f"Key {new_key} generated and dispatched via SMS!")
-                                    st.rerun()
-                    else:
-                        st.info("No pending payment claims awaiting audit.")
-                except Exception as e:
-                    st.error(f"Error reading audit log: {e}")
-            else:
-                st.info("No payment transactions recorded yet.")
-                
-        with adm_tab2:
             st.subheader("💬 User Feedback Log")
             feedback_file = "user_feedback.csv"
             if os.path.exists(feedback_file):
@@ -598,7 +392,7 @@ with tab4:
             else:
                 st.info("No feedback submissions yet.")
                 
-        with adm_tab3:
+        with adm_tab2:
             st.subheader("📊 Platform Operational Overview")
             st.metric("Active System Status", "Online (2026 Operational)")
             st.metric("Hosting Environment", "Streamlit Cloud Free Tier")
