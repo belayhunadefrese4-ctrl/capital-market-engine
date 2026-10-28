@@ -113,7 +113,6 @@ def validate_and_consume_key(key_input):
     
     match = df[(df["Access Key"] == key_input) & (df["Key Status"] == "Active")]
     if not match.empty:
-        # Mark key as used so it cannot be reused
         idx = match.index[0]
         df.at[idx, "Key Status"] = "Used"
         df.at[idx, "Used Timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -553,8 +552,6 @@ with tab4:
             if os.path.exists(PAYMENT_LOG_FILE):
                 try:
                     df_payments = pd.read_csv(PAYMENT_LOG_FILE, dtype=str).fillna("")
-                    
-                    # Display existing transactions
                     st.dataframe(df_payments, use_container_width=True)
                     
                     st.divider()
@@ -572,63 +569,38 @@ with tab4:
                             with c3:
                                 st.write(f"**Ref:** `{row['Reference Code']}`")
                             with c4:
-                                if st.button(f"📲 Approve & Send SMS Key to {row['Sender Full Name']}", key=f"btn_approve_{idx}", type="primary"):
-                                    # Generate new unique key
+                                if st.button(f"📲 Approve & Send SMS Key", key=f"btn_approve_{idx}", type="primary"):
                                     new_key = generate_unique_key()
                                     clean_phone = row['Sender Account/Phone'].replace("+", "").strip()
                                     
-                                    # Update CSV record
                                     df_payments.at[idx, "Status"] = "Approved"
                                     df_payments.at[idx, "Access Key"] = new_key
                                     df_payments.at[idx, "Key Status"] = "Active"
                                     df_payments.to_csv(PAYMENT_LOG_FILE, index=False)
                                     
-                                    # Dispatch SMS to Client
-                                    sms_msg = f"EthioMarkets: Your payment is verified! Use access key '{new_key}' to unlock and download your PDF report."
-                                    sms_res = send_smsethiopia_alert(clean_phone, sms_msg)
-                                    
-                                    st.success(f"✅ Approved! Key '{new_key}' dispatched to {clean_phone} via SMS.")
+                                    sms_msg = f"Your EthioMarkets M&E access key is: {new_key}. Use this key once to download your certified PDF report."
+                                    send_smsethiopia_alert(clean_phone, sms_msg)
+                                    st.success(f"Key {new_key} generated and dispatched via SMS!")
                                     st.rerun()
                     else:
-                        st.info("🎉 No pending payment claims awaiting audit.")
-                    
-                    st.divider()
-                    csv_data = df_payments.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Download Payment Audit Log (.CSV)",
-                        data=csv_data,
-                        file_name=f"Payment_Audit_Log_{datetime.now().strftime('%Y%m%d')}.csv",
-                        mime="text/csv"
-                    )
+                        st.info("No pending payment claims awaiting audit.")
                 except Exception as e:
-                    st.error(f"Error loading logs: {e}")
+                    st.error(f"Error reading audit log: {e}")
             else:
                 st.info("No payment transactions recorded yet.")
-
+                
         with adm_tab2:
-            st.subheader("💬 Community & Institutional Reviews")
-            feedback_log_file = "user_feedback.csv"
-            
-            if os.path.exists(feedback_log_file):
-                try:
-                    df_feedback = pd.read_csv(feedback_log_file, on_bad_lines='skip')
-                    if "Rating" in df_feedback.columns:
-                        avg_rating = df_feedback["Rating"].mean()
-                        st.metric("Average Rating", f"⭐ {avg_rating:.1f} / 5.0")
-                    st.dataframe(df_feedback, use_container_width=True)
-                except Exception:
-                    os.remove(feedback_log_file)
-                    st.rerun()
+            st.subheader("💬 User Feedback Log")
+            feedback_file = "user_feedback.csv"
+            if os.path.exists(feedback_file):
+                df_fb = pd.read_csv(feedback_file)
+                st.dataframe(df_fb, use_container_width=True)
             else:
-                st.info("No user reviews submitted yet.")
-
+                st.info("No feedback submissions yet.")
+                
         with adm_tab3:
-            st.subheader("📊 Platform Analytics & Traffic Reach")
-            st.markdown("""
-            **Streamlit Cloud Analytics:**  
-            View live active sessions and bandwidth metrics in your [Streamlit Cloud Dashboard](https://share.streamlit.io).
-            """)
-            st.info("💡 **Google Analytics:** Traffic stats are logged directly to your Google Analytics dashboard using tag ID `G-XXXXXXXXXX`.")
-
-    elif admin_password != "":
-        st.error("❌ Invalid Admin Password. Access Denied.")
+            st.subheader("📊 Platform Operational Overview")
+            st.metric("Active System Status", "Online (2026 Operational)")
+            st.metric("Hosting Environment", "Streamlit Cloud Free Tier")
+    elif admin_password:
+        st.error("❌ Incorrect Admin Master Key.")
